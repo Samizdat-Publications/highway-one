@@ -12,12 +12,20 @@ import { buildLayout } from './world/layout.js';
 import { createTerrain } from './world/terrain.js';
 import { buildRoadMesh } from './world/roadmesh.js';
 import { createCollide } from './collide.js';
+import { buildOcean } from './world/ocean.js';
+import { createWeather } from './weather.js';
 import { createCar } from './vehicle/car.js';
 import { buildCarMesh } from './vehicle/carmesh.js';
 import { buildInterior } from './cockpit/interior.js';
 import { buildWheel } from './cockpit/wheel.js';
 import { buildGauges } from './cockpit/gauges.js';
 import { createCameraRig } from './cockpit/camera.js';
+import { buildControls } from './cockpit/controls.js';
+import { buildWipers } from './cockpit/wipers.js';
+import { buildMirrors } from './cockpit/mirrors.js';
+import { buildVehicleLights } from './cockpit/lights.js';
+import { buildNav } from './cockpit/nav.js';
+import { buildRadio } from './cockpit/radio.js';
 import { createHUD } from './hud.js';
 import { createMenu } from './menu.js';
 
@@ -51,6 +59,7 @@ const roads = createRoads(); buildLayout(roads);
 const collide = createCollide();
 const terrain = createTerrain(roads, M, T); scene.add(terrain.build());
 const roadMesh = buildRoadMesh(roads, terrain, M, T, collide); scene.add(roadMesh.group);
+const ocean = buildOcean(scene, terrain, sky, T);
 const world = {
   roads, terrain, collide,
   surfaceAt(x, z) {
@@ -70,6 +79,17 @@ const interior = buildInterior(M, T); body.add(interior.root);
 const wheel = buildWheel(M, interior.anchors, CONFIG.cockpit);
 const gauges = buildGauges(M, interior.anchors, car, game);
 const rig = createCameraRig(camera, body, CONFIG.cockpit);
+const controls = buildControls(M, T, interior.anchors, car);
+const wipers = buildWipers(M, interior.anchors, car);
+const mirrors = buildMirrors(M, interior.anchors, exterior, scene, renderer, Q);
+const vlights = buildVehicleLights(exterior, interior.anchors, car, game);
+const nav = buildNav(M, interior.anchors, roads, car, game);
+const radio = buildRadio(M, interior.anchors, game);
+const weather = createWeather(scene, camera, sky, M, wipers, car, Q);
+// mirror cameras see layer 2: everything in the world except the cabin
+scene.traverse((o) => { o.layers.enable(2); });
+interior.root.traverse((o) => { o.layers.disable(2); });
+sky.dome.layers.enable(2);
 
 const input = createInput(canvas, {
   onEscape: () => { if (game.state === 'playing') pause(); else if (game.state === 'paused') resume(); },
@@ -87,6 +107,7 @@ function applyOption(k, v) {
     case 'trans': car.drivetrain.setMode(v); break;
     case 'hour': game.hour = v; sky.setHour(v); break;
     case 'hudspeed': hud.S.showSpeed = v === 'on'; break;
+    case 'weather': weather.set(v, game.state === 'menu'); break;
     default: break;
   }
 }
@@ -121,7 +142,10 @@ function handleEdges(I) {
   if (E.signalR) L.signal = L.signal === 'R' ? null : 'R';
   if (E.hazards) L.hazards = !L.hazards;
   if (E.lights) { if (!L.low) { L.low = true; L.high = false; } else if (!L.high) L.high = true; else { L.low = false; L.high = false; } }
-  if (E.wipers) S.wipers.mode = (S.wipers.mode + 1) % 4;
+  if (E.wipers) { S.wipers.mode = (S.wipers.mode + 1) % 4; hud.toast(['WIPERS OFF', 'WIPERS · INTERMITTENT', 'WIPERS · LOW', 'WIPERS · HIGH'][S.wipers.mode], '', 1.2); }
+  if (E.lights) L.manual = true;
+  if (E.navZoom) nav.cycleZoom();
+  if (E.radio) radio.cycle();
   if (E.transmission) { const order = ['auto', 'manualH', 'manualSeq']; const next = order[(order.indexOf(D.S.mode) + 1) % 3]; D.setMode(next); menu.opts.trans = next; menu.refresh(); menu.save(); hud.toast(({ auto: 'AUTOMATIC', manualH: 'MANUAL · H-PATTERN (1-6, 0=N)', manualSeq: 'MANUAL · SEQUENTIAL' })[next], '', 2); }
   if (E.ignition) { if (car.engine.S.running) { car.engine.stop(); } else { game.ignitionOn = true; car.engine.start(); } }
   if (E.seatbelt) S.seatbelt = !S.seatbelt;
@@ -150,6 +174,10 @@ function simStep(dt) {
   game.hour = (game.hour + dt / 3600 * 12) % 24; // 2-hour day for now (12× real time) — tuned later
   rig.update(dt, I, car);
   wheel.update(dt, car);
+  controls.update(dt);
+  wipers.update(dt);
+  // auto headlights at dusk unless the player has used the switch
+  if (!car.S.lights.manual && !car.S.lights.low && sky.S.sunElev < 3 && game.state === 'playing') { car.S.lights.low = true; hud.toast('HEADLIGHTS ON', '', 1.5); }
 }
 
 function syncVisuals() {
@@ -168,14 +196,21 @@ function render(dt) {
     camera.fov = d.fov; camera.updateProjectionMatrix(); camera.position.set(d.x, d.y, d.z); camera.lookAt(d.tx, d.ty, d.tz); camera.updateMatrixWorld(true);
   } else if (camera.parent === scene) { scene.remove(camera); rig.pivot.add(camera); camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); camera.fov = rig.S.fov; camera.updateProjectionMatrix(); }
   gauges.update(dt, sky.S.night);
+  vlights.update(dt, sky.S.night);
+  radio.update(dt);
+  nav.update(dt, roads.surfaceAt(car.S.x, car.S.z));
   sky.setHour(game.hour);
+  weather.update(dt);
   sky.update(camera);
   sky.refreshEnvironment(renderer);
+  ocean.update(dt);
+  car.S.inTunnel = !!roads.surfaceAt(car.S.x, car.S.z).tunnel;
   carRoot.updateMatrixWorld(true);
   fwdV.set(-Math.sin(car.S.yaw), 0, -Math.cos(car.S.yaw)); focusV.set(car.S.x, car.S.y, car.S.z);
   lighting.update(dt, focusV, fwdV);
   renderer.shadowMap.needsUpdate = true;
   renderer.info.reset();
+  if (!game.debugCam) mirrors.render(camera);
   post.render(dt);
   hud.update(dt);
   hud.setClock(fmtClock(game.hour));
@@ -210,12 +245,12 @@ requestAnimationFrame(frame);
 
 // ---------------------------------------------------------------- test hooks
 window.__game = {
-  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, menu, hud, gauges, interior, exterior,
+  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, menu, hud, gauges, interior, exterior,
   start, pause, resume,
   tick(n = 1, dt = DT) { for (let i = 0; i < n; i++) simStep(dt); render(dt * n); },
   teleport(x, z, yaw = 0) { car.teleport(x, z, yaw); syncVisuals(); },
   setTime(h) { game.hour = h; sky.setHour(h); },
-  setWeather(kind) { console.log('weather not built yet', kind); },
+  setWeather(kind, instant = true) { weather.set(kind, instant); menu.opts.weather = kind; menu.refresh(); },
   // free camera for inspecting the world from above: debugShot(x,y,z, tx,ty,tz [,fov]); debugShot(null) restores the rig
   debugShot(x, y, z, tx, ty, tz, fov = 60) { game.debugCam = x == null ? null : { x, y, z, tx, ty, tz, fov }; render(0.016); },
 };

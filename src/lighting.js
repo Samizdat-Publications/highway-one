@@ -41,10 +41,10 @@ export function createLighting(scene, renderer, sky, quality) {
     sun.target.updateMatrixWorld();
 
     moon.position.copy(K.moonDir).multiplyScalar(100).add(focus); moon.target.position.copy(focus); moon.target.updateMatrixWorld();
-    moon.intensity = 0.06 * K.night;
+    moon.intensity = 0.28 * K.night;
     hemi.color.copy(K.horizonColor).lerp(K.zenithColor, 0.35);
     hemi.groundColor.copy(sky.u.ground.value).lerp(warmGround, 0.6 * K.daylight);
-    hemi.intensity = lerp(0.06, 0.38, K.daylight);
+    hemi.intensity = lerp(0.11, 0.38, K.daylight);
     S.streetOn = K.sunElev < 2;
   }
 

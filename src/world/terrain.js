@@ -64,8 +64,10 @@ export function createTerrain(roads, M, T) {
       h -= notch * (34 + 10 * smoothstep(-120, 40, rel)) * (1 - smoothstep(40, 140, -rel));
       // headlands over the tunnels
       for (const tz of [-955, -2145]) { const b = Math.exp(-((z - tz) * (z - tz)) / (70 * 70)); h += b * 30 * (1 - smoothstep(-20, -70, rel)); }
-      h += smoothstep(-300, -600, z) * 0; // reserved
     }
+    // sea floor keeps dropping offshore so the ocean has real depth (surf only near the shore)
+    const shore = z > -260 ? -128 : coastAt(z).x - 62;
+    if (x < shore) h -= (shore - x) * 0.09 + smoothstep(0, 150, shore - x) * 4;
     return h;
   }
 
@@ -133,9 +135,6 @@ export function createTerrain(roads, M, T) {
   }
   function build() {
     for (let cx = bounds.x0; cx < bounds.x1; cx += CHUNK) for (let cz = bounds.z0; cz < bounds.z1; cz += CHUNK) buildChunk(cx + CHUNK / 2, cz + CHUNK / 2);
-    // simple ocean plane placeholder (replaced by ocean.js)
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(4000, 5000), new THREE.MeshStandardMaterial({ color: 0x1f5f7a, roughness: 0.25, metalness: 0.1 }));
-    sea.rotation.x = -Math.PI / 2; sea.position.set(-1400, -1.0, -900); sea.receiveShadow = true; sea.layers.enable(2); group.add(sea);
     return group;
   }
 
