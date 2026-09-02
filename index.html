@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Highway One</title>
+<link rel="stylesheet" href="./style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2212%22 fill=%22%23f4a261%22/><path d=%22M12 44 L32 16 L52 44 Z%22 fill=%22%23264653%22/><rect x=%2229%22 y=%2230%22 width=%226%22 height=%2214%22 fill=%22%23f4f1de%22/></svg>">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/",
+    "three/addons/utils/BufferGeometryUtils.js": "./vendor/three/BufferGeometryUtils.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- ===== HUD (minimal: the dashboard is the primary instrument) ===== -->
+<div id="hud">
+  <div id="topleft">
+    <div id="mode-name">FREE ROAM</div>
+    <div id="objective"></div>
+    <div id="timer"></div>
+  </div>
+  <div id="topright">
+    <div id="clock"></div>
+    <div id="street"></div>
+  </div>
+  <div id="toast"></div>
+  <div id="speed-hint"></div>
+  <div id="perf"></div>
+  <div id="lock-hint"></div>
+  <div id="report" class="hidden"></div>
+</div>
+
+<!-- ===== MENUS ===== -->
+<div id="menu" class="overlay">
+  <div class="menu-card">
+    <div class="badge">1</div>
+    <h1>HIGHWAY ONE</h1>
+    <div class="sub">PELICAN POINT &middot; PACIFIC COAST</div>
+    <p class="blurb">A sedan, a coast road, and nowhere you have to be.</p>
+    <div class="controls">
+      <div><b>W / S</b> throttle / brake</div><div><b>A / D</b> steer</div><div><b>SPACE</b> handbrake</div>
+      <div><b>Q / E</b> turn signals</div><div><b>L</b> lights</div><div><b>H</b> horn</div>
+      <div><b>MOUSE</b> look around</div><div><b>1 2 3</b> quick look L / rear / R</div><div><b>T</b> auto / manual</div>
+      <div><b>SHIFT / CTRL</b> shift up / down</div><div><b>C</b> clutch</div><div><b>X</b> wipers</div>
+      <div><b>M</b> mode</div><div><b>R</b> radio</div><div><b>ESC</b> pause / options</div>
+    </div>
+    <div class="modes" id="mode-picker">
+      <button class="mode-btn on" data-mode="freeroam">FREE ROAM</button>
+      <button class="mode-btn" data-mode="delivery">DELIVERIES</button>
+      <button class="mode-btn" data-mode="rules">DRIVING TEST</button>
+      <button class="mode-btn" data-mode="timetrial">TIME TRIAL</button>
+    </div>
+    <button id="btn-start" disabled>START THE CAR</button>
+    <div id="loading">BUILDING THE COAST…</div>
+    <div id="best"></div>
+    <div class="fine">Gamepads and wheels are picked up automatically once you press a button on them.</div>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="menu-card small">
+    <h1>PAUSED</h1>
+    <div class="opts">
+      <label><span>LOOK SENSITIVITY</span><input type="range" id="opt-sens" min="0.3" max="3" step="0.05"><b id="opt-sens-v"></b></label>
+      <label><span>VOLUME</span><input type="range" id="opt-vol" min="0" max="1" step="0.05"><b id="opt-vol-v"></b></label>
+      <label><span>FIELD OF VIEW</span><input type="range" id="opt-fov" min="55" max="95" step="1"><b id="opt-fov-v"></b></label>
+      <label><span>SEAT HEIGHT</span><input type="range" id="opt-seat" min="-0.06" max="0.06" step="0.005"><b id="opt-seat-v"></b></label>
+      <label><span>TRANSMISSION</span><select id="opt-trans"><option value="auto">AUTOMATIC</option><option value="manualH">MANUAL (H-PATTERN)</option><option value="manualSeq">MANUAL (SEQUENTIAL)</option></select></label>
+      <label><span>QUALITY</span><select id="opt-quality"><option value="high">HIGH</option><option value="medium">MEDIUM</option><option value="low">LOW</option></select></label>
+      <label><span>TIME OF DAY</span><input type="range" id="opt-hour" min="0" max="24" step="0.25"><b id="opt-hour-v"></b></label>
+      <label><span>WEATHER</span><select id="opt-weather"><option value="clear">CLEAR</option><option value="fog">FOG</option><option value="rain">RAIN</option></select></label>
+      <label><span>HUD SPEED</span><select id="opt-hudspeed"><option value="off">OFF</option><option value="on">ON</option></select></label>
+    </div>
+    <div class="row">
+      <button id="btn-resume">RESUME</button>
+      <button id="btn-menu" class="ghost">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<div id="boot-error"></div>
+
+<script type="module" src="./src/main.js"></script>
+<script>
+  // Capture phase catches resource failures too: a 404'd module is otherwise a black screen.
+  window.addEventListener('error', (e) => {
+    const el = document.getElementById('boot-error');
+    if (!el || el.textContent) return;
+    const tgt = e.target;
+    let msg = null;
+    if (e.message) msg = e.message + '\n' + (e.filename || '') + ':' + (e.lineno || '');
+    else if (tgt && tgt !== window && (tgt.src || tgt.href)) msg = 'FAILED TO LOAD: ' + (tgt.src || tgt.href);
+    if (msg) { el.style.display = 'block'; el.textContent = 'BOOT ERROR\n\n' + msg; }
+  }, true);
+  window.addEventListener('unhandledrejection', (e) => {
+    const el = document.getElementById('boot-error');
+    if (!el || el.textContent) return;
+    el.style.display = 'block'; el.textContent = 'BOOT ERROR\n\n' + (e.reason && (e.reason.stack || e.reason.message) || e.reason);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+name: Deploy
+
+# Static site: no build step. The whole checkout (minus .gitignored folders,
+# which are never committed) is published to GitHub Pages on every push to main.
+# index.html uses relative paths, so the /highway-one/ sub-path works unchanged.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: .
+      # v5 line required: GitHub runs actions on Node 24 and deploy-pages@v4 fails there.
+      - id: deployment
+        uses: actions/deploy-pages@v5
