@@ -4,8 +4,9 @@
     {
       "name": "highway-one",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["serve.py", "8432"],
-      "port": 8432
+      "runtimeArgs": ["serve.py"],
+      "port": 8432,
+      "autoPort": true
     }
   ]
 }
