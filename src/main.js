@@ -7,7 +7,11 @@ import { createInput } from './input.js';
 import { createPost } from './post.js';
 import { createSky } from './sky.js';
 import { createLighting } from './lighting.js';
-import { buildTestWorld } from './world/testroad.js';
+import { createRoads } from './world/roads.js';
+import { buildLayout } from './world/layout.js';
+import { createTerrain } from './world/terrain.js';
+import { buildRoadMesh } from './world/roadmesh.js';
+import { createCollide } from './collide.js';
 import { createCar } from './vehicle/car.js';
 import { buildCarMesh } from './vehicle/carmesh.js';
 import { buildInterior } from './cockpit/interior.js';
@@ -43,7 +47,19 @@ const Q = CONFIG.quality[menu.opts.quality] || CONFIG.quality.high;
 const lighting = createLighting(scene, renderer, sky, Q);
 const post = createPost(renderer, scene, camera);
 post.u.grain.value = 0.02; post.u.vignette.value = 0.35;
-const world = buildTestWorld(scene, M);
+const roads = createRoads(); buildLayout(roads);
+const collide = createCollide();
+const terrain = createTerrain(roads, M, T); scene.add(terrain.build());
+const roadMesh = buildRoadMesh(roads, terrain, M, T, collide); scene.add(roadMesh.group);
+const world = {
+  roads, terrain, collide,
+  surfaceAt(x, z) {
+    const r = roads.surfaceAt(x, z);
+    if (r.onRoad || r.seg) return r;
+    const h = terrain.heightAt(x, z);
+    return { onRoad: false, height: h, surface: terrain.surfaceType(x, z, h), limitMph: 25, laneIndex: 0, lateral: 0, tunnel: false, seg: null, name: '' };
+  },
+};
 const car = createCar(CONFIG.car, world);
 
 // car rig: carRoot (pos/yaw) → body (pitch/roll/heave) → exterior + interior + head
@@ -129,6 +145,7 @@ function simStep(dt) {
   if (game.state === 'playing') handleEdges(I);
   else { I.throttle = 0; I.brake = Math.max(I.brake, 0); }
   car.step(dt, I);
+  collide.resolveCar(car);
   game.time += dt;
   game.hour = (game.hour + dt / 3600 * 12) % 24; // 2-hour day for now (12× real time) — tuned later
   rig.update(dt, I, car);
@@ -145,6 +162,11 @@ function syncVisuals() {
 
 function render(dt) {
   syncVisuals();
+  if (game.debugCam) {
+    const d = game.debugCam; carRoot.updateMatrixWorld(true);
+    if (camera.parent !== scene) { camera.parent.remove(camera); scene.add(camera); }
+    camera.fov = d.fov; camera.updateProjectionMatrix(); camera.position.set(d.x, d.y, d.z); camera.lookAt(d.tx, d.ty, d.tz); camera.updateMatrixWorld(true);
+  } else if (camera.parent === scene) { scene.remove(camera); rig.pivot.add(camera); camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); camera.fov = rig.S.fov; camera.updateProjectionMatrix(); }
   gauges.update(dt, sky.S.night);
   sky.setHour(game.hour);
   sky.update(camera);
@@ -157,7 +179,9 @@ function render(dt) {
   post.render(dt);
   hud.update(dt);
   hud.setClock(fmtClock(game.hour));
-  hud.setSpeed(car.S.speedMph, 45);
+  const here = roads.surfaceAt(car.S.x, car.S.z);
+  hud.setSpeed(car.S.speedMph, here.limitMph);
+  hud.setStreet(here.name);
 }
 
 function frame(now) {
@@ -179,17 +203,19 @@ function frame(now) {
 window.addEventListener('resize', () => { renderer.setSize(VW(), VH()); camera.aspect = VW() / VH(); camera.updateProjectionMatrix(); post.setSize(VW(), VH()); });
 
 // ---------------------------------------------------------------- boot
-car.teleport(-2, 40, 0); // right lane, heading −z
+car.teleport(-38.25, 230, 0); // Ocean Ave, right-hand northbound lane, heading −z
 game.hour = menu.opts.hour; sky.setHour(game.hour);
 menu.setReady(true, '');
 requestAnimationFrame(frame);
 
 // ---------------------------------------------------------------- test hooks
 window.__game = {
-  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, menu, hud, gauges, interior, exterior,
+  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, menu, hud, gauges, interior, exterior,
   start, pause, resume,
   tick(n = 1, dt = DT) { for (let i = 0; i < n; i++) simStep(dt); render(dt * n); },
   teleport(x, z, yaw = 0) { car.teleport(x, z, yaw); syncVisuals(); },
   setTime(h) { game.hour = h; sky.setHour(h); },
   setWeather(kind) { console.log('weather not built yet', kind); },
+  // free camera for inspecting the world from above: debugShot(x,y,z, tx,ty,tz [,fov]); debugShot(null) restores the rig
+  debugShot(x, y, z, tx, ty, tz, fov = 60) { game.debugCam = x == null ? null : { x, y, z, tx, ty, tz, fov }; render(0.016); },
 };
