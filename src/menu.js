@@ -1,7 +1,7 @@
 // Main menu, pause menu, persisted options.
 export function createMenu(hooks) {
   const $ = (id) => document.getElementById(id);
-  const opts = { sens: 1, vol: 0.8, fov: 70, seat: 0, trans: 'auto', quality: 'high', hour: 15.5, weather: 'clear', hudspeed: 'off', mode: 'freeroam' };
+  const opts = { sens: 1, vol: 0.8, fov: 60, seat: 0, trans: 'auto', quality: 'high', hour: 15.5, weather: 'clear', hudspeed: 'off', mode: 'freeroam' };
   try { Object.assign(opts, JSON.parse(localStorage.getItem('highwayone_opts') || '{}')); } catch (e) { /* storage unavailable */ }
   const fmt = { sens: (v) => v.toFixed(2) + 'x', vol: (v) => Math.round(v * 100) + '%', fov: (v) => v + '°', seat: (v) => (v >= 0 ? '+' : '') + Math.round(v * 1000) + 'mm', hour: (v) => { const h = Math.floor(v), m = Math.round((v - h) * 60); return `${h}:${m < 10 ? '0' : ''}${m}`; } };
   const ranges = ['sens', 'vol', 'fov', 'seat', 'hour'], selects = ['trans', 'quality', 'weather', 'hudspeed'];

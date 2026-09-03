@@ -62,7 +62,7 @@ export function createSky(scene) {
   {
     const g = cloudCanvas.getContext('2d'); g.clearRect(0, 0, 1024, 1024);
     let s = 12345; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-    for (let i = 0; i < 55; i++) {
+    for (let i = 0; i < 26; i++) {
       const cx = rnd() * 1024, cy = rnd() * 1024, n = 6 + Math.floor(rnd() * 10), size = 40 + rnd() * 90;
       for (let k = 0; k < n; k++) {
         const x = cx + (rnd() - 0.5) * size * 2.2, y = cy + (rnd() - 0.5) * size * 0.9, r = size * (0.35 + rnd() * 0.5);
@@ -73,8 +73,8 @@ export function createSky(scene) {
       }
     }
   }
-  const cloudTex = new THREE.CanvasTexture(cloudCanvas); cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping; cloudTex.repeat.set(2, 2); cloudTex.colorSpace = THREE.SRGBColorSpace;
-  const cloudMat = new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.6, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const cloudTex = new THREE.CanvasTexture(cloudCanvas); cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping; cloudTex.repeat.set(1.6, 1.6); cloudTex.colorSpace = THREE.SRGBColorSpace;
+  const cloudMat = new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.55, depthWrite: false, fog: false, side: THREE.DoubleSide });
   const clouds = new THREE.Mesh(new THREE.CircleGeometry(3200, 48), cloudMat); clouds.rotation.x = -Math.PI / 2; clouds.position.y = 950; clouds.renderOrder = -9; clouds.frustumCulled = false; clouds.userData.noMerge = true;
   scene.add(clouds);
 

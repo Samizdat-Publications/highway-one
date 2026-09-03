@@ -49,6 +49,16 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
     const t = T.photoTex(name, { repeat: [1, 0.88], offset: [0, 0.06] });
     if (t) { styles[i].mat.map = t; styles[i].mat.needsUpdate = true; styles[i].photo = true; }
   }
+  const SHOPS = ['PELICAN CAFE', 'SURF SHOP', 'TACO STAND', 'PHARMACY', 'BOOKS & RECORDS', 'LIQUOR', 'DINER', 'BOARD RENTALS', 'GELATO', 'SUNSET GRILL', 'HARDWARE', 'YOGA', 'BIKE HIRE', 'TATTOO', 'COFFEE', 'POKE BOWL', 'DENTIST', 'GALLERY', 'THRIFT', 'FISH MARKET'];
+  const awnCols = ['#c1121f', '#1f6f8b', '#2a9d8f', '#e9c46a', '#264653', '#e76f51'];
+  const signMats = new Map();
+  function signMat(text, bg) {
+    const key = text + bg; if (signMats.has(key)) return signMats.get(key);
+    const tex = T.canvasTex(512, 96, (g, w, h) => { g.fillStyle = bg; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 4; g.strokeRect(6, 6, w - 12, h - 12); g.fillStyle = '#fff6e0'; g.font = '800 44px Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, h / 2 + 2); }, { wrap: false });
+    const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.6 });
+    signMats.set(key, m); return m;
+  }
+  const awningMats = awnCols.map((c) => new THREE.MeshStandardMaterial({ map: T.canvasTex(128, 64, (g, w, h) => { for (let i = 0; i < w; i += 16) { g.fillStyle = i % 32 ? '#f4f1de' : c; g.fillRect(i, 0, 16, h); } }, { repeat: [3, 1] }), roughness: 0.85, side: THREE.DoubleSide }));
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a8580, roughness: 1, map: T.photoTex('roof', { repeat: [1, 1] }) || null });
   if (!roofMat.map) roofMat.color.setHex(0x4a4744);
   const parapetMat = new THREE.MeshStandardMaterial({ color: 0xb9ae9a, roughness: 0.9 });
@@ -76,7 +86,29 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
     push(parapetMat, new THREE.BoxGeometry(0.3, 0.6, d).translate(x0, y + h + 0.3, z0 + d / 2));
     push(parapetMat, new THREE.BoxGeometry(0.3, 0.6, d).translate(x0 + w, y + h + 0.3, z0 + d / 2));
     if (rng() < 0.5) push(roofMat, new THREE.BoxGeometry(2, 1.2, 1.6).translate(x0 + 3 + rng() * (w - 6), y + h + 0.6, z0 + 3 + rng() * (d - 6)));
+    if (rng() < 0.3) push(parapetMat, new THREE.CylinderGeometry(1.1, 1.1, 2.2, 10).translate(x0 + w * 0.7, y + h + 1.3, z0 + d * 0.3));
+    // storefront: sign board + striped awning on the face toward the nearest street
+    const face = streetFace(x0, z0, w, d);
+    if (face) {
+      const shop = SHOPS[Math.floor(rng() * SHOPS.length)], bg = awnCols[Math.floor(rng() * awnCols.length)];
+      const len = Math.min(face.len * 0.7, 12), yaw = face.yaw;
+      const sign = new THREE.PlaneGeometry(len, len * 96 / 512 * 0.9).applyMatrix4(new THREE.Matrix4().makeRotationY(yaw)).translate(face.cx + face.nx * 0.06, y + 3.55, face.cz + face.nz * 0.06);
+      push(signMat(shop, bg), sign);
+      const awn = new THREE.BoxGeometry(len + 1, 0.12, 1.4).applyMatrix4(new THREE.Matrix4().makeRotationY(yaw)).translate(face.cx + face.nx * 0.8, y + 2.9, face.cz + face.nz * 0.8);
+      push(awningMats[Math.floor(rng() * awningMats.length)], awn);
+    }
     collide.addBox(x0 + w / 2, z0 + d / 2, w / 2, d / 2, 0, 'building');
+  }
+
+  // which face of a building looks at the closest street: returns { cx, cz, nx, nz, yaw, len }
+  function streetFace(x0, z0, w, d) {
+    const faces = [
+      { cx: x0 + w / 2, cz: z0 + d, nx: 0, nz: 1, yaw: 0, len: w }, { cx: x0 + w / 2, cz: z0, nx: 0, nz: -1, yaw: Math.PI, len: w },
+      { cx: x0 + w, cz: z0 + d / 2, nx: 1, nz: 0, yaw: Math.PI / 2, len: d }, { cx: x0, cz: z0 + d / 2, nx: -1, nz: 0, yaw: -Math.PI / 2, len: d },
+    ];
+    let best = null, bd = 1e9;
+    for (const f of faces) { const n = roads.nearest(f.cx + f.nx * 6, f.cz + f.nz * 6, 30); const dd = n ? n.dist : 1e9; if (dd < bd) { bd = dd; best = f; } }
+    return bd < 16 ? best : null;
   }
 
   // ------------------------------------------------------------------ blocks
@@ -90,7 +122,15 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
     // split the block into 2–3 lots along x and 2 along z with alleys
     const nx = 2 + (rng() < 0.5 ? 1 : 0), nz = 2;
     for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++) {
-      if (rng() < 0.12) continue; // empty lot / parking
+      if (rng() < 0.12) { // paved parking lot with stalls
+        const lw0 = bw / nx, ld0 = bd / nz;
+        const px0 = bx0 + a * lw0 + 1, pz0 = bz0 + b * ld0 + 1, pw = lw0 - 2, pd = ld0 - 2;
+        const yy = groundY(px0 + pw / 2, pz0 + pd / 2) + 0.05;
+        const lot = new THREE.PlaneGeometry(pw, pd).rotateX(-Math.PI / 2); const luv = lot.attributes.uv; for (let i = 0; i < luv.count; i++) luv.setXY(i, luv.getX(i) * pw / 8, luv.getY(i) * pd / 8);
+        push(M.asphalt, lot.translate(px0 + pw / 2, yy, pz0 + pd / 2));
+        for (let sx = px0 + 3; sx < px0 + pw - 3; sx += 2.7) push(M.paintWhite, new THREE.PlaneGeometry(0.12, 5).rotateX(-Math.PI / 2).translate(sx, yy + 0.02, pz0 + 4));
+        continue;
+      }
       const lw = bw / nx, ld = bd / nz;
       const gap = 1.5 + rng() * 2;
       const w = lw - gap - rng() * 6, d = ld - gap - rng() * 6;
@@ -112,6 +152,7 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
   function update(dt, night, streetOn) {
     const lit = streetOn;
     for (const st of styles) st.mat.emissiveIntensity = lit ? 0.9 : 0;
+    for (const m of signMats.values()) m.emissiveIntensity = lit ? 1.4 : 0;
   }
   return { group, update, styles };
 }

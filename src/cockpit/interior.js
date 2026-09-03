@@ -29,15 +29,20 @@ export function buildInterior(M, T) {
   box(0.38, 0.22, 2.3, M.carpet, 0, 0.42, 0.55);                           // transmission tunnel
   // A pillars: from cowl corners up to the roof edge
   for (const sgn of [-1, 1]) {
-    const p = box(0.09, 0.09, 0.78, M.dashDark, sgn * 0.74, 1.22, -0.62);
-    p.rotation.x = 32 * DEG; p.rotation.z = sgn * -4 * DEG;
+    {
+      const a = new THREE.Vector3(sgn * 0.76, 0.98, -0.95), b = new THREE.Vector3(sgn * 0.70, 1.42, -0.28);
+      const len = a.distanceTo(b);
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, len, 6), M.dashDark);
+      p.position.copy(a).lerp(b, 0.5); p.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      add(p);
+    }
     box(0.06, 0.48, 0.10, M.dashDark, sgn * 0.78, 1.20, 0.94);            // B pillars
     box(0.05, 0.40, 0.09, M.dashDark, sgn * 0.74, 1.15, 1.95);            // C pillars
     box(0.16, 0.02, 2.3, M.headliner, sgn * 0.75, 1.43, 0.75);             // roof rails
   }
   // windshield header + sun visors
   box(1.56, 0.045, 0.07, M.headliner, 0, 1.415, -0.30);
-  for (const sgn of [-1, 1]) { const v = box(0.30, 0.012, 0.13, M.headliner, sgn * 0.40, 1.36, -0.24); v.rotation.x = 20 * DEG; }
+  for (const sgn of [-1, 1]) { const v = box(0.26, 0.01, 0.11, M.headliner, sgn * 0.40, 1.395, -0.22); v.rotation.x = 8 * DEG; }
 
   // ---------------------------------------------------------------- dash (side profile extruded across)
   {
@@ -53,20 +58,20 @@ export function buildInterior(M, T) {
   // door-to-dash trim strip (brushed)
   box(1.6, 0.03, 0.02, M.trim, 0, 0.80, -0.35);
   // glovebox
-  box(0.62, 0.20, 0.03, M.dashDark, 0.42, 0.68, -0.34);
+  box(1.58, 0.21, 0.03, M.rep('leatherTan', 6, 1), 0, 0.67, -0.335);
   box(0.08, 0.012, 0.012, M.trim, 0.42, 0.78, -0.325);
 
   // ---------------------------------------------------------------- instrument binnacle + hood
   {
-    const binn = new THREE.Group(); binn.position.set(-0.37, 1.03, -0.50); binn.rotation.x = -18 * DEG; add(binn);
+    const binn = new THREE.Group(); binn.position.set(-0.37, 0.955, -0.50); binn.rotation.x = -20 * DEG; add(binn);
     const face = box(0.42, 0.20, 0.02, M.pianoBlack, 0, 0, 0, binn);
     anchors.cluster = new THREE.Object3D(); anchors.cluster.position.set(0, 0, 0.011); binn.add(anchors.cluster);
     // quarter-arch over the top (from the crest backwards) + flat visor reaching forward over the cluster
-    const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.48, 18, 1, true, Math.PI / 2, Math.PI / 2), M.rep('dashSoft', 2, 1));
+    const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.46, 18, 1, true, Math.PI / 2, Math.PI / 2), M.rep('dashSoft', 2, 1));
     hood.material.side = THREE.DoubleSide;
     hood.rotation.z = Math.PI / 2; hood.position.set(0, 0.02, -0.02); add(hood, binn);
-    const visor = box(0.48, 0.012, 0.24, M.rep('dashSoft', 2, 1), 0, 0.145, 0.08, binn); visor.rotation.x = 4 * DEG;
-    box(0.48, 0.012, 0.02, M.pianoBlack, 0, 0.14, 0.20, binn); // visor lip
+    const visor = box(0.46, 0.012, 0.16, M.rep('dashSoft', 2, 1), 0, 0.122, 0.05, binn); visor.rotation.x = 3 * DEG;
+    box(0.46, 0.012, 0.02, M.pianoBlack, 0, 0.118, 0.13, binn); // visor lip
     // bezel around the cluster
     box(0.44, 0.012, 0.03, M.dashDark, 0, -0.105, 0.005, binn);
     box(0.012, 0.22, 0.03, M.dashDark, -0.215, 0.0, 0.005, binn); box(0.012, 0.22, 0.03, M.dashDark, 0.215, 0.0, 0.005, binn);
@@ -74,7 +79,7 @@ export function buildInterior(M, T) {
 
   // ---------------------------------------------------------------- steering column
   {
-    const col = new THREE.Group(); col.position.set(-0.37, 0.90, -0.18); col.rotation.x = -24 * DEG; add(col);
+    const col = new THREE.Group(); col.position.set(-0.37, 0.86, -0.20); col.rotation.x = -27 * DEG; add(col);
     anchors.column = col;
     const shroud = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.26, 16), M.dashSoft);
     shroud.rotation.x = Math.PI / 2; shroud.position.z = -0.16; add(shroud, col);
@@ -162,12 +167,12 @@ export function buildInterior(M, T) {
   // ---------------------------------------------------------------- windshield, rear glass, mirror mounts
   {
     const ws = new THREE.Mesh(new THREE.PlaneGeometry(1.50, 0.78), M.glass);
-    ws.position.set(0, 1.21, -0.60); ws.rotation.x = -(90 - 31) * DEG; add(ws);
+    ws.position.set(0, 1.21, -0.60); ws.rotation.x = (90 - 31) * DEG; add(ws);
     anchors.windshield = ws;
     const tint = new THREE.Mesh(new THREE.PlaneGeometry(1.50, 0.10), M.glassTint);
-    tint.position.set(0, 1.385, -0.33); tint.rotation.x = -(90 - 31) * DEG; add(tint);
+    tint.position.set(0, 1.385, -0.31); tint.rotation.x = (90 - 31) * DEG; add(tint);
     const rear = new THREE.Mesh(new THREE.PlaneGeometry(1.36, 0.52), M.glass);
-    rear.position.set(0, 1.20, 2.20); rear.rotation.x = (90 - 28) * DEG; add(rear);
+    rear.position.set(0, 1.20, 2.20); rear.rotation.x = -(90 - 28) * DEG; add(rear);
     anchors.rearMirror = new THREE.Object3D(); anchors.rearMirror.position.set(0, 1.30, -0.36); root.add(anchors.rearMirror);
     const stalk = box(0.02, 0.06, 0.02, M.dashDark, 0, 0.04, -0.02, anchors.rearMirror);
     anchors.sideMirrorL = new THREE.Object3D(); anchors.sideMirrorL.position.set(-0.98, 1.02, -0.30); root.add(anchors.sideMirrorL);

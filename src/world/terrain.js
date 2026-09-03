@@ -137,7 +137,7 @@ export function createTerrain(roads, M, T) {
       const sandW = type === 'sand' ? 1 : type === 'dirt' ? 0.5 : 0;
       const grassW = Math.max(0, 1 - rockW - sandW);
       splat[i * 3] = grassW; splat[i * 3 + 1] = sandW * (1 - rockW); splat[i * 3 + 2] = rockW;
-      if (photos) { tmpC.set(1, 1, 1); if (type === 'grass') tmpC.lerp(new THREE.Color(0xd8c9a0), smoothstep(20, 90, h) * 0.25); }
+      if (photos) { tmpC.set(1, 1, 1); if (type === 'grass') tmpC.lerp(new THREE.Color(0xd8c9a0), smoothstep(20, 90, h) * 0.25); if (type === 'grass' && x > -30 && x < 470 && z > -200 && z < 200) tmpC.set(0.62, 0.78, 0.5); }
       else {
         tmpC.copy(type === 'sand' ? cSand : type === 'dirt' ? cDirt : cGrass);
         if (type === 'grass') { tmpC.lerp(cScrub, smoothstep(20, 90, h) * 0.8); tmpC.lerp(cRock, smoothstep(0.25, 0.55, slope)); }

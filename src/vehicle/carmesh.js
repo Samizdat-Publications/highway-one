@@ -32,7 +32,7 @@ export function buildCarMesh(M, C) {
     box(0.06, 0.12, 2.25, M.paintDark, sgn * 0.88, 0.32, 0.85); // sill
     // side mirror housing
     const mir = new THREE.Group(); mir.position.set(sgn * 0.98, 1.02, -0.30); root.add(mir);
-    const h = box(0.20, 0.11, 0.09, paint, 0, 0, 0); mir.add(h); h.position.set(sgn * 0.02, 0, 0);
+    const h = box(0.17, 0.10, 0.08, M.paintDark, 0, 0, 0); mir.add(h); h.position.set(sgn * 0.02, 0, 0);
     const arm = box(0.08, 0.04, 0.05, M.paintDark, sgn * -0.08, -0.03, 0.02); mir.add(arm);
     mir.userData.isMirror = sgn;
     root.userData['mirror' + (sgn < 0 ? 'L' : 'R')] = mir;

@@ -42,7 +42,7 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
   const addPalm = (x, z, h = 6 + rng() * 4) => { palmSpots.push({ x, z, h, yaw: rng() * Math.PI * 2, lean: (rng() - 0.5) * 0.12 }); collide.addCircle(x, z, 0.4, 'palm'); };
   // along Ocean Ave both sides, the beach edge and Pier Ave
   for (const seg of roads.segments) {
-    if (seg.name === 'Ocean Ave') { for (let s = 12; s < seg.length - 12; s += 22) { const sm = roads.sampleAt(seg, s); for (const side of [-1, 1]) { const off = side * (seg.hw + 3.6); addPalm(sm.p.x + sm.n.x * off, sm.p.z + sm.n.z * off); } } }
+    if (seg.name === 'Ocean Ave') { for (let s = 12; s < seg.length - 12; s += 22) { const sm = roads.sampleAt(seg, s); for (const side of [-1, 1]) { const off = side * (seg.hw + 3.6); addPalm(sm.p.x + sm.n.x * off, sm.p.z + sm.n.z * off); } } for (let s = 14; s < seg.length - 14; s += 24) { const sm = roads.sampleAt(seg, s); palmSpots.push({ x: sm.p.x, z: sm.p.z, h: 7 + rng() * 5, yaw: rng() * Math.PI * 2, lean: (rng() - 0.5) * 0.08, raise: 0.18 }); } }
     if (seg.name === 'Pier Ave' || seg.name === 'Seaview Ave' || seg.name === 'Palm Ave') { for (let s = 15; s < seg.length - 15; s += 26) { const sm = roads.sampleAt(seg, s); const off = -(seg.hw + 3.4); addPalm(sm.p.x + sm.n.x * off, sm.p.z + sm.n.z * off, 5 + rng() * 3); } }
   }
   for (let z = -240; z < 260; z += 18 + rng() * 14) addPalm(-58 - rng() * 12, z, 5 + rng() * 5);
@@ -54,7 +54,7 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
     const NF = 8;
     const fronds = new THREE.InstancedMesh(frondG, frondMat, palmSpots.length * NF);
     palmSpots.forEach((pm, i) => {
-      const y = groundY(pm.x, pm.z);
+      const y = groundY(pm.x, pm.z) + (pm.raise || 0);
       m4.compose(v.set(pm.x, y, pm.z), q.setFromEuler(e.set(pm.lean, pm.yaw, 0)), sc.set(1, pm.h, 1)); trunks.setMatrixAt(i, m4);
       const top = new THREE.Vector3(pm.x + Math.sin(pm.lean) * pm.h * 0.5, y + pm.h * 0.98, pm.z);
       for (let k = 0; k < NF; k++) { const a = pm.yaw + (k / NF) * Math.PI * 2 + rng() * 0.3; const tilt = -0.25 - rng() * 0.35; m4.compose(top, q.setFromEuler(e.set(0, a, tilt, 'YXZ')), sc.set(0.9 + rng() * 0.3, 1, 1)); fronds.setMatrixAt(i * NF + k, m4); }
@@ -201,6 +201,26 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
       CG.wheelOffsets.forEach(([wx, wz], k) => { const lx = wx * Math.cos(p.yaw) + wz * Math.sin(p.yaw), lz = -wx * Math.sin(p.yaw) + wz * Math.cos(p.yaw); m4.compose(v.set(p.x + lx, p.y + 0.31, p.z + lz), q, sc); wheels.setMatrixAt(i * 4 + k, m4); });
     });
     for (const im of [bodies, cabins, wheels]) { im.castShadow = true; im.computeBoundingSphere(); im.layers.enable(2); group.add(im); }
+  }
+
+  // ------------------------------------------------------------------ beach umbrellas + towels
+  {
+    const umbG = mergeGeometries([new THREE.ConeGeometry(1.4, 0.5, 10, 1, true).translate(0, 2.0, 0), new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6).translate(0, 1.1, 0)]);
+    const cols = [0xe63946, 0xf4a261, 0x2a9d8f, 0xffd166, 0xffffff, 0x457b9d];
+    const N = 70; const umb = new THREE.InstancedMesh(umbG, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide }), N);
+    const towels = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.0, 1.8).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), N);
+    const c = new THREE.Color();
+    for (let i = 0; i < N; i++) {
+      const x = -70 - rng() * 32, z = (rng() < 0.6 ? 105 + (rng() - 0.5) * 160 : (rng() - 0.5) * 460);
+      const y = groundY(x, z);
+      m4.compose(v.set(x, y, z), q.setFromEuler(e.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.25)), sc.set(1, 1, 1)); umb.setMatrixAt(i, m4); umb.setColorAt(i, c.setHex(cols[i % cols.length]));
+      m4.compose(v.set(x + 1.2, y + 0.02, z + 0.6), q.setFromEuler(e.set(0, rng() * Math.PI * 2, 0)), sc.set(1, 1, 1)); towels.setMatrixAt(i, m4); towels.setColorAt(i, c.setHex(cols[(i + 3) % cols.length]));
+    }
+    umb.castShadow = true; umb.computeBoundingSphere(); towels.computeBoundingSphere(); umb.layers.enable(2); towels.layers.enable(2); group.add(umb, towels);
+    // volleyball nets
+    const netG = mergeGeometries([new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6).translate(-4, 1.2, 0), new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6).translate(4, 1.2, 0), new THREE.BoxGeometry(8, 0.9, 0.02).translate(0, 1.85, 0)]);
+    const nets = []; for (const z of [-140, -20, 60, 170]) { const x = -92; nets.push(place(netG, x, groundY(x, z), z, rng() * 0.6)); }
+    const netMesh = new THREE.Mesh(mergeGeometries(nets), new THREE.MeshStandardMaterial({ color: 0xf0efe8, roughness: 0.9, transparent: true, opacity: 0.85 })); netMesh.layers.enable(2); group.add(netMesh);
   }
 
   // ------------------------------------------------------------------ benches, hydrants, bollards along the beachfront

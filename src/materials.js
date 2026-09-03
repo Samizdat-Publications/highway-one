@@ -20,7 +20,7 @@ export function makeMaterials(T) {
     sand: std({ map: T.sand, roughness: 1 }),
     rock: std({ map: T.rock, roughness: 0.95 }),
     // interior
-    dashSoft: std({ map: T.plastic, roughnessMap: T.plasticRough, roughness: 1.0, metalness: 0, color: 0xc8c8c8, envMapIntensity: 0.25 }),
+    dashSoft: std({ map: T.plastic, roughnessMap: T.plasticRough, roughness: 1.0, metalness: 0, color: 0x8e8e8e, envMapIntensity: 0.15 }),
     dashDark: std({ color: 0x141518, roughness: 0.9, envMapIntensity: 0.3 }),
     pianoBlack: std({ color: 0x08090b, roughness: 0.12, metalness: 0.1 }),
     trim: std({ map: T.brushed, roughness: 0.38, metalness: 0.85 }),

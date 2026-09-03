@@ -60,6 +60,14 @@ export function buildRoadMesh(roads, terrain, M, T, collide) {
       for (let i = 0; i < uv.count; i++) uv.setX(i, 0.5 + (uv.getX(i) - 0.5) * scale);
       push(M[tex], g);
     }
+    // landscaped median on avenues (palms are planted on it by props.js)
+    if (seg.type === 'avenue') {
+      const mw = 1.1;
+      const top = ribbon(seg, [-mw + 0.25, mw - 0.25], s0 + 3, s1 - 3, 0.18, 'world'); if (top) push(M.grass, top);
+      const curbL = ribbon(seg, [-mw, -mw + 0.25], s0 + 3, s1 - 3, 0, 'world', (p, off) => p.y + (off > -mw + 0.01 ? 0.18 : 0.03)); if (curbL) push(M.concreteDark, curbL);
+      const curbR = ribbon(seg, [mw - 0.25, mw], s0 + 3, s1 - 3, 0, 'world', (p, off) => p.y + (off < mw - 0.01 ? 0.18 : 0.03)); if (curbR) push(M.concreteDark, curbR);
+      for (let s = s0 + 3; s < s1 - 3; s += 10) { const sm = roads.sampleAt(seg, Math.min(s + 5, s1 - 3)); collide.addBox(sm.p.x, sm.p.z, mw, 5.2, Math.atan2(-sm.t.x, -sm.t.z), 'median'); }
+    }
     // sidewalks + curbs
     if (seg.sidewalk) {
       for (const side of [-1, 1]) {

@@ -32,10 +32,10 @@ export const CONFIG = {
   },
 
   cockpit: {
-    eye: { x: -0.37, y: 1.19, z: 0.40 },
-    fov: 70, lookYawMax: 150, lookPitchMin: -40, lookPitchMax: 35,
+    eye: { x: -0.37, y: 1.24, z: 0.42 },
+    fov: 60, lookYawMax: 150, lookPitchMin: -40, lookPitchMax: 35,
     returnDelay: 0.6, returnWn: 1.2, returnZeta: 0.9,
-    wheelHub: { x: -0.37, y: 0.90, z: -0.18 }, wheelTilt: 24, wheelRadius: 0.185,
+    wheelHub: { x: -0.37, y: 0.86, z: -0.20 }, wheelTilt: 27, wheelRadius: 0.185,
   },
 
   world: { shorelineX: -112, seed: 0x48574f4e },
