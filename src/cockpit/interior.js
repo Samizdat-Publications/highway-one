@@ -47,14 +47,14 @@ export function buildInterior(M, T) {
   // ---------------------------------------------------------------- dash (side profile extruded across)
   {
     const s = new THREE.Shape(); // in (−z, y): x_s = -z_car
-    const P = [[0.95, 0.99], [0.75, 1.005], [0.55, 1.0], [0.46, 0.985], [0.40, 0.955], [0.36, 0.91], [0.345, 0.84], [0.36, 0.74], [0.42, 0.65], [0.50, 0.58], [0.70, 0.55], [0.95, 0.55]];
+    const P = [[0.95, 0.94], [0.75, 0.945], [0.55, 0.935], [0.46, 0.92], [0.40, 0.90], [0.36, 0.87], [0.345, 0.82], [0.36, 0.74], [0.42, 0.65], [0.50, 0.58], [0.70, 0.55], [0.95, 0.55]];
     s.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) s.lineTo(P[i][0], P[i][1]); s.closePath();
     const g = new THREE.ExtrudeGeometry(s, { depth: 1.62, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
     const dash = new THREE.Mesh(g, M.rep('dashSoft', 4, 2));
     dash.rotation.y = Math.PI / 2; dash.position.x = -0.81; add(dash);
   }
   // dash top soft strip + defroster vents
-  for (let x = -0.62; x <= 0.62; x += 0.31) { const v = box(0.22, 0.006, 0.05, M.pianoBlack, x, 1.006, -0.86); }
+  for (let x = -0.62; x <= 0.62; x += 0.31) { const v = box(0.22, 0.006, 0.05, M.pianoBlack, x, 0.946, -0.86); }
   // door-to-dash trim strip (brushed)
   box(1.6, 0.03, 0.02, M.trim, 0, 0.80, -0.35);
   // glovebox
@@ -63,18 +63,17 @@ export function buildInterior(M, T) {
 
   // ---------------------------------------------------------------- instrument binnacle + hood
   {
-    const binn = new THREE.Group(); binn.position.set(-0.37, 0.955, -0.50); binn.rotation.x = -20 * DEG; add(binn);
+    const binn = new THREE.Group(); binn.position.set(-0.37, 0.995, -0.50); binn.rotation.x = -22 * DEG; add(binn);
+    // housing: a rounded pod behind the face, closed at the back and sides
+    add(PL(rounded(0.46, 0.24, 0.05, 0.16, M.rep('dashSoft', 2, 1)), [0, 0.0, -0.09], null), binn);
     const face = box(0.42, 0.20, 0.02, M.pianoBlack, 0, 0, 0, binn);
     anchors.cluster = new THREE.Object3D(); anchors.cluster.position.set(0, 0, 0.011); binn.add(anchors.cluster);
-    // quarter-arch over the top (from the crest backwards) + flat visor reaching forward over the cluster
-    const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.46, 18, 1, true, Math.PI / 2, Math.PI / 2), M.rep('dashSoft', 2, 1));
-    hood.material.side = THREE.DoubleSide;
-    hood.rotation.z = Math.PI / 2; hood.position.set(0, 0.02, -0.02); add(hood, binn);
-    const visor = box(0.46, 0.012, 0.16, M.rep('dashSoft', 2, 1), 0, 0.122, 0.05, binn); visor.rotation.x = 3 * DEG;
-    box(0.46, 0.012, 0.02, M.pianoBlack, 0, 0.118, 0.13, binn); // visor lip
+    // eyebrow visor over the top, short so it never enters the eye line
+    const visor = box(0.48, 0.014, 0.12, M.rep('dashSoft', 2, 1), 0, 0.125, 0.02, binn); visor.rotation.x = 6 * DEG;
+    box(0.48, 0.014, 0.02, M.pianoBlack, 0, 0.12, 0.08, binn); // visor lip
     // bezel around the cluster
-    box(0.44, 0.012, 0.03, M.dashDark, 0, -0.105, 0.005, binn);
-    box(0.012, 0.22, 0.03, M.dashDark, -0.215, 0.0, 0.005, binn); box(0.012, 0.22, 0.03, M.dashDark, 0.215, 0.0, 0.005, binn);
+    box(0.46, 0.014, 0.03, M.dashDark, 0, -0.107, 0.006, binn);
+    box(0.014, 0.23, 0.03, M.dashDark, -0.222, 0.0, 0.006, binn); box(0.014, 0.23, 0.03, M.dashDark, 0.222, 0.0, 0.006, binn);
   }
 
   // ---------------------------------------------------------------- steering column
@@ -94,7 +93,7 @@ export function buildInterior(M, T) {
 
   // ---------------------------------------------------------------- center stack + console
   {
-    const stack = new THREE.Group(); stack.position.set(0, 0.86, -0.40); stack.rotation.x = -12 * DEG; add(stack);
+    const stack = new THREE.Group(); stack.position.set(0, 0.80, -0.40); stack.rotation.x = -12 * DEG; add(stack);
     add(PL(rounded(0.34, 0.30, 0.03, 0.03, M.rep('dashSoft', 2, 2)), [0, 0.02, -0.02], null), stack);
     // nav bezel + screen anchor
     box(0.30, 0.175, 0.012, M.pianoBlack, 0, 0.07, 0.006, stack);

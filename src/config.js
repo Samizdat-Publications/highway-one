@@ -32,7 +32,7 @@ export const CONFIG = {
   },
 
   cockpit: {
-    eye: { x: -0.37, y: 1.24, z: 0.42 },
+    eye: { x: -0.37, y: 1.25, z: 0.42 },
     fov: 60, lookYawMax: 150, lookPitchMin: -40, lookPitchMax: 35,
     returnDelay: 0.6, returnWn: 1.2, returnZeta: 0.9,
     wheelHub: { x: -0.37, y: 0.86, z: -0.20 }, wheelTilt: 27, wheelRadius: 0.185,

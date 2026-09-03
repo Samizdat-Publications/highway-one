@@ -123,7 +123,7 @@ export function buildPier(scene, roads, terrain, M, T, collide, lighting) {
     const cars = []; for (let i = 0; i < 3; i++) { const c = box(1.2, 0.9, 1.8, std({ color: i === 0 ? 0x2a4a8a : 0xffd166, roughness: 0.4 }), 0, 0, 0); cars.push(c); }
     collide.addBox(cx + 5, cz, 58, 6.5, 0, 'coaster');
     let s = 0; const L = curve.getLength();
-    rides.push({ update: (dt) => { const p0 = curve.getPointAt(s / L); const v = 6 + Math.sqrt(Math.max(0, (DY + 10 - p0.y)) * 2 * 9.81) * 0.55; s = (s + v * dt) % L; cars.forEach((c, i) => { const t = ((s - i * 2.2 + L) % L) / L; const p = curve.getPointAt(t), tg = curve.getTangentAt(t); c.position.copy(p).y += 0.5; c.rotation.set(0, Math.atan2(tg.x, tg.z), 0, 'YXZ'); c.rotateX(-Math.asin(Math.max(-1, Math.min(1, tg.y)))); }); } });
+    rides.push({ update: (dt) => { if (!Number.isFinite(dt) || !(L > 1)) return; const p0 = curve.getPoint(((s % L) + L) % L / L); const v = 6 + Math.sqrt(Math.max(0, (DY + 10 - p0.y)) * 2 * 9.81) * 0.55; s = (((s + v * Math.min(dt, 0.5)) % L) + L) % L; if (!Number.isFinite(s)) s = 0; cars.forEach((c, i) => { const t = (((s - i * 2.2) % L) + L) % L / L; const p = curve.getPoint(t), tg = curve.getTangent(t); c.position.copy(p).y += 0.5; c.rotation.set(0, Math.atan2(tg.x, tg.z), 0, 'YXZ'); c.rotateX(-Math.asin(Math.max(-1, Math.min(1, tg.y)))); }); } });
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.6), signMat('WEST COASTER', 9, 1.6, '#2a4a8a', '#ffe08a', 60)); sign.position.set(cx - 50, DY + 6.5, cz + 6.5); add(sign);
   }
   // spinning ride (scrambler) + drop tower

@@ -1,4 +1,14 @@
-# NEXT-SESSION — checkpoint 2026-09-02 (day 1, block 2: feedback pass + graphics)
+# NEXT-SESSION — checkpoint 2026-09-03 (block 3: cabin geometry + world graphics)
+
+**Stewart's usage credits renew 2026-09-04 at 2:00 PM — schedule the next block after that.** Graphics remain the focus; gameplay features are queued in `docs/ROADMAP.md`.
+
+## Block 3 (2026-09-03)
+- Cabin rebuilt for correct proportions: windshield + rear glass flipped to lean the right way, A-pillars are thin tapered beams rising rearward, sun visors flush, dash top lowered (cowl 0.94 m), **cluster is a raised hooded pod** (centre y ≈ 1.0, tilted 22° toward the driver) fully visible above the dash and over the wheel rim, wheel hub lowered/raked, eye at 1.25 m, **default FOV 60°** (was 70; the wide FOV was showing too much roof/dash), two-tone tan lower dash, darker dash top.
+- Sunset light column fixed: windshield/tint glass reflectivity cut (envMapIntensity 0.12, roughness 0.25) and hood paint less mirror-like.
+- Ocean Ave got a raised landscaped median with palms; every building has a storefront sign + striped awning facing its street; empty lots are paved parking with stalls; town lawns tinted green; beach umbrellas, towels, volleyball nets; clouds patchier.
+- Roller coaster animation guarded (NaN once reached the curve → uses getPoint with wrapped s).
+
+## Previous block (2026-09-02, block 2)
 
 **Live:** https://samizdat-publications.github.io/highway-one/  ·  **Repo (public):** github.com/Samizdat-Publications/highway-one
 Deploy = push to `main`. Dev server: `preview_start highway-one` (autoPort) or `python serve.py 8432`.
