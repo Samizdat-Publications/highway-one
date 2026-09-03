@@ -1,9 +1,24 @@
-// Canvas texture factory. Everything visual is drawn here at boot; nothing is downloaded.
+// Canvas texture factory. Photo tiles from assets/textures (generated once with tools/gen_textures.py)
+// are used as bases when they loaded; everything falls back to procedural canvases.
 import * as THREE from 'three';
 import { createRng } from './rng.js';
 
-export function makeTextures(seed = 1) {
+export function makeTextures(seed = 1, images = {}) {
   const rng = createRng(seed);
+  const img = (name) => images[name] || null;
+  // photo tile → texture (repeat wrapping, sRGB)
+  function photoTex(name, opts = {}) {
+    const im = img(name); if (!im) return null;
+    const t = new THREE.Texture(im); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = opts.aniso || 8;
+    if (opts.repeat) t.repeat.set(opts.repeat[0], opts.repeat[1]);
+    if (opts.offset) t.offset.set(opts.offset[0], opts.offset[1]);
+    t.needsUpdate = true; return t;
+  }
+  // tile a photo across a canvas so that one tile spans `tileM` metres of a canvas that covers wM × hM metres
+  function tilePhoto(g, im, w, h, wM, hM, tileM) {
+    const tw = w * (tileM / wM), th = h * (tileM / hM);
+    for (let y = 0; y < h; y += th) for (let x = 0; x < w; x += tw) g.drawImage(im, x, y, tw, th);
+  }
 
   function canvasTex(w, h, draw, opts = {}) {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -34,8 +49,8 @@ export function makeTextures(seed = 1) {
     return canvasTex(size, size, (g, w, h) => {
       const pxPerM = w / widthM, pxPerMv = h / 12;
       g.fillStyle = tint; g.fillRect(0, 0, w, h);
-      noise(g, w, h, 26000, 0.05, 0.22, 1, 3, ['#111', '#3a3b3d', '#4a4a48', '#202224', '#57534e']);
-      noise(g, w, h, 4000, 0.03, 0.10, 4, 14, ['#1a1a1a', '#3d3d3f']);
+      if (img('asphalt')) { tilePhoto(g, img('asphalt'), w, h, widthM, 12, 4); g.fillStyle = tint; g.globalAlpha = 0.25; g.fillRect(0, 0, w, h); g.globalAlpha = 1; }
+      else { noise(g, w, h, 26000, 0.05, 0.22, 1, 3, ['#111', '#3a3b3d', '#4a4a48', '#202224', '#57534e']); noise(g, w, h, 4000, 0.03, 0.10, 4, 14, ['#1a1a1a', '#3d3d3f']); }
       if (wear) {
         // lighter tyre-polished bands roughly where wheels run (lanes assumed 3.5 m)
         g.globalAlpha = 0.06; g.fillStyle = '#6b6a66';
@@ -55,7 +70,7 @@ export function makeTextures(seed = 1) {
         // paint wear
         g.globalAlpha = 1;
       }
-      noise(g, w, h, 3000, 0.04, 0.12, 1, 3, ['#222', '#555']);
+      if (!img('asphalt')) noise(g, w, h, 3000, 0.04, 0.12, 1, 3, ['#222', '#555']);
     }, { aniso: 16 });
   }
   const road2 = asphalt({ widthM: 8, markings: [{ x: 0.45, type: 'solid' }, { x: 4, type: 'double', color: '#d9b24a' }, { x: 7.55, type: 'solid' }] });
@@ -63,22 +78,23 @@ export function makeTextures(seed = 1) {
   const road4 = asphalt({ widthM: 15.6, markings: [{ x: 0.45, type: 'solid' }, { x: 4, type: 'dashed' }, { x: 7.8, type: 'double', color: '#d9b24a' }, { x: 11.6, type: 'dashed' }, { x: 15.15, type: 'solid' }] });
   const street = asphalt({ widthM: 11, markings: [{ x: 5.5, type: 'double', color: '#d9b24a' }], tint: '#2e2f31' });
   const asphaltPlain = asphalt({ widthM: 8, markings: [], wear: false, size: 512 });
+  const decking = photoTex('decking') || canvasTex(512, 512, (g, w, h) => { g.fillStyle = '#8a6f52'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 18) { g.fillStyle = `rgba(30,20,10,${0.3 + rng() * 0.25})`; g.fillRect(0, y, w, 3); g.fillStyle = `rgba(255,235,205,${rng() * 0.09})`; g.fillRect(0, y + 6, w, 5); for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(rng() * w, y + 3, 1, 14); } } });
 
-  const concrete = canvasTex(512, 512, (g, w, h) => {
+  const concrete = photoTex('concrete') || canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#9a968c'; g.fillRect(0, 0, w, h);
     noise(g, w, h, 9000, 0.05, 0.2, 1, 4, ['#6f6b62', '#b5b1a6', '#847f76']);
     g.strokeStyle = 'rgba(40,38,34,0.35)'; g.lineWidth = 3;
     g.strokeRect(2, 2, w - 4, h - 4);
   });
-  const grass = canvasTex(512, 512, (g, w, h) => {
+  const grass = photoTex('grass') || canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#5c6b2e'; g.fillRect(0, 0, w, h);
     noise(g, w, h, 16000, 0.15, 0.4, 1, 4, ['#3f4d1e', '#7a8a3a', '#8b8d45', '#4a5a26', '#a89a4a']);
   });
-  const sand = canvasTex(512, 512, (g, w, h) => {
+  const sand = photoTex('sand') || canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#d9c497'; g.fillRect(0, 0, w, h);
     noise(g, w, h, 14000, 0.08, 0.3, 1, 3, ['#c4ad7c', '#eadcb3', '#b8a06f']);
   });
-  const rock = canvasTex(512, 512, (g, w, h) => {
+  const rock = photoTex('rock') || canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#7a6a56'; g.fillRect(0, 0, w, h);
     noise(g, w, h, 6000, 0.1, 0.35, 2, 12, ['#5a4c3c', '#9a8a70', '#6e6250', '#8c7b62']);
     g.strokeStyle = 'rgba(30,25,20,0.4)'; g.lineWidth = 2;
@@ -135,7 +151,7 @@ export function makeTextures(seed = 1) {
 
   return {
     canvasTex, rng,
-    road2, road2dash, road4, street, asphaltPlain, concrete, grass, sand, rock,
+    road2, road2dash, road4, street, asphaltPlain, decking, concrete, grass, sand, rock, photoTex, img,
     leatherTan, leatherBlack, stitchTan, plastic, plasticRough, brushed, carpet, speakerGrille, woodTrim, generalNoise,
   };
 }

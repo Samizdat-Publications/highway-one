@@ -57,6 +57,27 @@ export function createSky(scene) {
     if (old) old.dispose();
   }
 
+  // cloud layer: a high plane with a soft canvas cloud texture scrolling slowly, tinted by the sun
+  const cloudCanvas = document.createElement('canvas'); cloudCanvas.width = 1024; cloudCanvas.height = 1024;
+  {
+    const g = cloudCanvas.getContext('2d'); g.clearRect(0, 0, 1024, 1024);
+    let s = 12345; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    for (let i = 0; i < 55; i++) {
+      const cx = rnd() * 1024, cy = rnd() * 1024, n = 6 + Math.floor(rnd() * 10), size = 40 + rnd() * 90;
+      for (let k = 0; k < n; k++) {
+        const x = cx + (rnd() - 0.5) * size * 2.2, y = cy + (rnd() - 0.5) * size * 0.9, r = size * (0.35 + rnd() * 0.5);
+        const grad = g.createRadialGradient(x, y, 0, x, y, r); grad.addColorStop(0, 'rgba(255,255,255,0.55)'); grad.addColorStop(0.6, 'rgba(255,255,255,0.22)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = grad; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        // wrap copies so the tile repeats seamlessly
+        for (const [ox, oy] of [[-1024, 0], [1024, 0], [0, -1024], [0, 1024]]) { g.beginPath(); g.arc(x + ox, y + oy, r, 0, Math.PI * 2); g.fill(); }
+      }
+    }
+  }
+  const cloudTex = new THREE.CanvasTexture(cloudCanvas); cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping; cloudTex.repeat.set(2, 2); cloudTex.colorSpace = THREE.SRGBColorSpace;
+  const cloudMat = new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.6, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const clouds = new THREE.Mesh(new THREE.CircleGeometry(3200, 48), cloudMat); clouds.rotation.x = -Math.PI / 2; clouds.position.y = 950; clouds.renderOrder = -9; clouds.frustumCulled = false; clouds.userData.noMerge = true;
+  scene.add(clouds);
+
   const S = { hour: 15.5, sunElev: 0, sunAz: 0, sunDir: new THREE.Vector3(), moonDir: new THREE.Vector3(), daylight: 1, night: 0, sunColor: new THREE.Color(), horizonColor: new THREE.Color(), zenithColor: new THREE.Color(), sunIntensity: 3 };
   const fogColor = new THREE.Color();
 
@@ -105,7 +126,13 @@ export function createSky(scene) {
     if (scene.fog) scene.fog.color.copy(fogColor);
     scene.background = null;
   }
-  function update(camera) { dome.position.copy(camera.position); }
+  function update(camera, dt = 0.016) {
+    dome.position.copy(camera.position);
+    clouds.position.x = camera.position.x; clouds.position.z = camera.position.z;
+    cloudTex.offset.x += dt * 0.0012; cloudTex.offset.y += dt * 0.0004;
+    cloudMat.color.copy(S.sunColor).lerp(new THREE.Color(0xffffff), 0.55).multiplyScalar(0.25 + 0.75 * S.daylight);
+    cloudMat.opacity = 0.6 * (0.35 + 0.65 * S.daylight) * (1 - u.night.value * 0.6);
+  }
   setHour(S.hour);
   return { S, u, dome, setHour, update, fogColor, refreshEnvironment };
 }

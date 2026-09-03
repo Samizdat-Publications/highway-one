@@ -44,7 +44,13 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
     });
     return { day, night, mat: new THREE.MeshStandardMaterial({ map: day, emissiveMap: night, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.85 }) };
   });
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a4744, roughness: 1 });
+  // photo facades (roof-tile strip at the top and the sidewalk at the bottom are cropped away)
+  for (const [i, name] of [[0, 'facade_stucco'], [1, 'facade_deco'], [4, 'facade_brick']]) {
+    const t = T.photoTex(name, { repeat: [1, 0.88], offset: [0, 0.06] });
+    if (t) { styles[i].mat.map = t; styles[i].mat.needsUpdate = true; styles[i].photo = true; }
+  }
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a8580, roughness: 1, map: T.photoTex('roof', { repeat: [1, 1] }) || null });
+  if (!roofMat.map) roofMat.color.setHex(0x4a4744);
   const parapetMat = new THREE.MeshStandardMaterial({ color: 0xb9ae9a, roughness: 0.9 });
   const buckets = new Map();
   const push = (mat, geo) => { if (!buckets.has(mat)) buckets.set(mat, []); buckets.get(mat).push(geo.index ? geo.toNonIndexed() : geo); };
@@ -55,9 +61,8 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
     const fh = 3.4, h = floors * fh;
     const mkWall = (cx, cz, len, yaw) => {
       const g = new THREE.PlaneGeometry(len, h);
-      const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (len / 16), (1 - uv.getY(i)) * (floors / 4) * -1 + 1 - (1 - floors / 4) * 0); // v: bottom of texture = ground floor
-      // simpler: v from (1 - floors/4) at bottom to 1 at top → tile every 4 floors
-      for (let i = 0; i < uv.count; i++) { const v = g.attributes.position.getY(i) / h + 0.5; uv.setY(i, 1 - floors / 4 + v * (floors / 4)); }
+      const photo = styles[style].photo; const perTile = photo ? 3 : 4, tileW = photo ? 20 : 16;
+      const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) { const v = g.attributes.position.getY(i) / h + 0.5; uv.setXY(i, uv.getX(i) * (len / tileW), 1 - floors / perTile + v * (floors / perTile)); }
       g.applyMatrix4(new THREE.Matrix4().makeRotationY(yaw)).translate(cx, y + h / 2, cz);
       return g;
     };
@@ -65,7 +70,7 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
     push(styles[style].mat, mkWall(x0 + w / 2, z0, w, Math.PI));             // north face
     push(styles[style].mat, mkWall(x0 + w, z0 + d / 2, d, Math.PI / 2));     // east face
     push(styles[style].mat, mkWall(x0, z0 + d / 2, d, -Math.PI / 2));        // west face
-    push(roofMat, new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).translate(x0 + w / 2, y + h, z0 + d / 2));
+    { const rg = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2); const ruv = rg.attributes.uv; for (let i = 0; i < ruv.count; i++) ruv.setXY(i, ruv.getX(i) * w / 10, ruv.getY(i) * d / 10); push(roofMat, rg.translate(x0 + w / 2, y + h, z0 + d / 2)); }
     push(parapetMat, new THREE.BoxGeometry(w + 0.3, 0.6, 0.3).translate(x0 + w / 2, y + h + 0.3, z0 + 0.0));
     push(parapetMat, new THREE.BoxGeometry(w + 0.3, 0.6, 0.3).translate(x0 + w / 2, y + h + 0.3, z0 + d));
     push(parapetMat, new THREE.BoxGeometry(0.3, 0.6, d).translate(x0, y + h + 0.3, z0 + d / 2));
@@ -97,78 +102,16 @@ export function buildTown(scene, roads, terrain, M, T, collide, lighting) {
   }
   for (const [mat, geos] of buckets) { const m = new THREE.Mesh(mergeGeometries(geos), mat); m.castShadow = true; m.receiveShadow = true; m.layers.enable(2); group.add(m); }
 
-  // ------------------------------------------------------------------ pier
-  const pier = new THREE.Group(); group.add(pier);
-  const deckY = 5.0, pz = 115, pw = 18, px0 = -66, px1 = -390;
-  const deckTex = T.canvasTex(512, 512, (g, w, h) => { g.fillStyle = '#8a6a48'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) { g.fillStyle = `rgba(30,20,10,${0.25 + rng() * 0.25})`; g.fillRect(0, y, w, 3); g.fillStyle = `rgba(255,230,200,${rng() * 0.08})`; g.fillRect(0, y + 6, w, 4); } }, { repeat: [8, 40] });
-  const deckMat = new THREE.MeshStandardMaterial({ map: deckTex, roughness: 0.9 });
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(px0 - px1, 0.5, pw), deckMat); deck.position.set((px0 + px1) / 2, deckY, pz); deck.receiveShadow = true; deck.castShadow = true; deck.layers.enable(2); pier.add(deck);
-  // ramp from the lot up to the deck
-  const ramp = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 6), deckMat); ramp.position.set(px0 + 6, (deckY + 2.2) / 2 + 0.6, pz); ramp.rotation.z = Math.atan2(deckY - 2.2, 14); ramp.layers.enable(2); pier.add(ramp);
-  const pileG = new THREE.CylinderGeometry(0.35, 0.4, 1, 8);
-  const piles = [];
-  for (let x = px0 - 4; x > px1; x -= 8) for (const dz of [-pw / 2 + 1, 0, pw / 2 - 1]) { const gy = terrain.baseHeight(x, pz + dz); const h = deckY - gy; piles.push(pileG.clone().applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, gy + h / 2, pz + dz), new THREE.Quaternion(), new THREE.Vector3(1, h, 1)))); }
-  const pileMesh = new THREE.Mesh(mergeGeometries(piles), new THREE.MeshStandardMaterial({ color: 0x4a3f36, roughness: 1 })); pileMesh.layers.enable(2); pier.add(pileMesh);
-  // railings + lamps along both edges
-  const railGeos = [];
-  for (let x = px0; x > px1; x -= 3) for (const dz of [-pw / 2 + 0.3, pw / 2 - 0.3]) railGeos.push(new THREE.BoxGeometry(0.08, 1.1, 0.08).translate(x, deckY + 0.8, pz + dz));
-  for (const dz of [-pw / 2 + 0.3, pw / 2 - 0.3]) railGeos.push(new THREE.BoxGeometry(px0 - px1, 0.06, 0.06).translate((px0 + px1) / 2, deckY + 1.3, pz + dz));
-  const railMesh = new THREE.Mesh(mergeGeometries(railGeos), new THREE.MeshStandardMaterial({ color: 0xe9e6dd, roughness: 0.7 })); railMesh.layers.enable(2); pier.add(railMesh);
-  const lampG = mergeGeometries([new THREE.CylinderGeometry(0.06, 0.08, 4, 6).translate(0, 2, 0), new THREE.SphereGeometry(0.28, 10, 8).translate(0, 4.2, 0)]);
-  const pierLamps = [];
-  for (let x = px0 - 10; x > px1; x -= 24) for (const dz of [-pw / 2 + 0.9, pw / 2 - 0.9]) { pierLamps.push(lampG.clone().translate(x, deckY + 0.25, pz + dz)); lighting.addSpot(x, deckY + 4.3, pz + dz, 0xffe8c0, 90, 22, 'street'); }
-  const pierLampMat = new THREE.MeshStandardMaterial({ color: 0xf0eee6, emissive: 0xffe2b0, emissiveIntensity: 0, roughness: 0.5 });
-  const pierLampMesh = new THREE.Mesh(mergeGeometries(pierLamps), pierLampMat); pierLampMesh.layers.enable(2); pier.add(pierLampMesh);
-  // kiosks along the deck
-  const kioskMat = new THREE.MeshStandardMaterial({ color: 0xd94f3a, roughness: 0.7 });
-  for (let x = px0 - 60; x > px1 + 60; x -= 70) { const k = new THREE.Mesh(new THREE.BoxGeometry(6, 3.2, 4), rng() < 0.5 ? kioskMat : new THREE.MeshStandardMaterial({ color: 0x3a8ad9, roughness: 0.7 })); k.position.set(x, deckY + 1.85, pz + (rng() < 0.5 ? -5 : 5)); k.castShadow = true; k.layers.enable(2); pier.add(k); const roof = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 5), new THREE.MeshStandardMaterial({ color: 0xf4f1de })); roof.position.set(x, deckY + 3.6, k.position.z); roof.layers.enable(2); pier.add(roof); }
-  // bollards so the car cannot drive onto the deck
-  for (const dz of [-6, -3, 0, 3, 6]) collide.addCircle(px0 + 1, pz + dz, 0.3, 'bollard');
-  for (const dz of [-6, -3, 0, 3, 6]) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.9, 8), parapetMat); b.position.set(px0 + 1, 2.6, pz + dz); b.layers.enable(2); pier.add(b); }
-
-  // Ferris wheel
-  const wheel = new THREE.Group(); const wx = -340, wy = deckY + 15, wz = pz; wheel.position.set(wx, wy, wz); pier.add(wheel);
-  const R = 12;
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(R, 0.18, 8, 48), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, metalness: 0.4 })); wheel.add(rim);
-  const rim2 = rim.clone(); rim.position.z = -1.2; rim2.position.z = 1.2; wheel.add(rim2);
-  const spokeMat = new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.5, metalness: 0.5 });
-  const spokeGeos = [];
-  const NS = 16;
-  for (let i = 0; i < NS; i++) { const a = (i / NS) * Math.PI * 2; for (const dz of [-1.2, 1.2]) spokeGeos.push(new THREE.BoxGeometry(0.1, R, 0.1).translate(0, R / 2, dz).applyMatrix4(new THREE.Matrix4().makeRotationZ(a))); }
-  wheel.add(new THREE.Mesh(mergeGeometries(spokeGeos), spokeMat));
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16).rotateX(Math.PI / 2), spokeMat); wheel.add(hub);
-  const gondolas = [];
-  const gondMats = [0xe63946, 0xf4a261, 0x2a9d8f, 0x457b9d, 0xffd166].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
-  for (let i = 0; i < NS; i++) { const a = (i / NS) * Math.PI * 2; const g = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 2.4), gondMats[i % gondMats.length]); const piv = new THREE.Group(); piv.position.set(Math.cos(a) * R, Math.sin(a) * R, 0); g.position.y = -1.1; piv.add(g); wheel.add(piv); gondolas.push({ piv, a }); }
-  // bulbs along the spokes (instanced, emissive at night with a chase)
-  const NB = NS * 6;
-  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff1c0, emissive: 0xffd070, emissiveIntensity: 0, roughness: 0.4 });
-  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 6, 5), bulbMat, NB);
-  const bm = new THREE.Matrix4();
-  for (let i = 0; i < NS; i++) for (let k = 0; k < 6; k++) { const a = (i / NS) * Math.PI * 2, r = 2.5 + k * 1.6; bm.makeTranslation(Math.cos(a) * r, Math.sin(a) * r, 1.45); bulbs.setMatrixAt(i * 6 + k, bm); }
-  bulbs.instanceMatrix.needsUpdate = true; wheel.add(bulbs);
-  // support legs
-  for (const sgn of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, Math.hypot(15, 8), 0.5), spokeMat); leg.position.set(wx + sgn * 4, deckY + 7.5, wz + 2.2); leg.rotation.z = sgn * Math.atan2(8, 15) * -1; leg.layers.enable(2); pier.add(leg); const leg2 = leg.clone(); leg2.position.z = wz - 2.2; pier.add(leg2); }
-  for (let i = 0; i < 4; i++) lighting.addSpot(wx + (i - 1.5) * 9, wy, wz + 3, 0xffd070, 60, 26, 'pier');
-  pier.traverse((o) => { if (o.isMesh) o.layers.enable(2); });
-
   // ------------------------------------------------------------------ lifeguard towers + boardwalk
   const towerMat = new THREE.MeshStandardMaterial({ color: 0x4aa3d9, roughness: 0.7 });
   for (const z of [-180, -60, 60, 200]) { const x = -88; const y = groundY(x, z); const t = new THREE.Group(); t.position.set(x, y, z); group.add(t); const cab = new THREE.Mesh(new THREE.BoxGeometry(3, 2.4, 3), towerMat); cab.position.y = 3.6; cab.castShadow = true; t.add(cab); const roof = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 3.6), new THREE.MeshStandardMaterial({ color: 0xf4f1de })); roof.position.y = 4.9; t.add(roof); for (const [dx, dz] of [[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 0.2), woodLike()); leg.position.set(dx, 1.3, dz); t.add(leg); } t.traverse((o) => { if (o.isMesh) o.layers.enable(2); }); collide.addBox(x, z, 1.6, 1.6, 0, 'tower'); }
   function woodLike() { return new THREE.MeshStandardMaterial({ color: 0x8a6a48, roughness: 0.9 }); }
-  const boardwalk = new THREE.Mesh(new THREE.PlaneGeometry(4, 520).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: deckTex.clone(), roughness: 0.9 }));
-  boardwalk.material.map.repeat.set(1, 60); boardwalk.material.map.needsUpdate = true; boardwalk.position.set(-64, 2.06, 0); boardwalk.receiveShadow = true; boardwalk.layers.enable(2); group.add(boardwalk);
+  const boardwalk = new THREE.Mesh(new THREE.PlaneGeometry(4, 520).rotateX(-Math.PI / 2), M.rep('pierDeck', 1, 60)); boardwalk.position.set(-64, 2.06, 0); boardwalk.receiveShadow = true; boardwalk.layers.enable(2); group.add(boardwalk);
 
   // ------------------------------------------------------------------ night state
-  let chase = 0;
   function update(dt, night, streetOn) {
-    wheel.rotation.z += dt * 0.12;
-    for (const gd of gondolas) gd.piv.rotation.z = -wheel.rotation.z; // gondolas stay upright
     const lit = streetOn;
     for (const st of styles) st.mat.emissiveIntensity = lit ? 0.9 : 0;
-    pierLampMat.emissiveIntensity = lit ? 2.5 : 0;
-    chase += dt * 3;
-    bulbMat.emissiveIntensity = lit ? 2.0 + Math.sin(chase) * 1.2 : 0;
   }
-  return { group, pier, wheel, update, styles };
+  return { group, update, styles };
 }

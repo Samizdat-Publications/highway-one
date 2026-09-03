@@ -58,18 +58,18 @@ export function buildInterior(M, T) {
 
   // ---------------------------------------------------------------- instrument binnacle + hood
   {
-    const binn = new THREE.Group(); binn.position.set(-0.37, 1.0, -0.50); binn.rotation.x = -14 * DEG; add(binn);
-    const face = box(0.36, 0.17, 0.02, M.pianoBlack, 0, 0, 0, binn);
+    const binn = new THREE.Group(); binn.position.set(-0.37, 1.03, -0.50); binn.rotation.x = -18 * DEG; add(binn);
+    const face = box(0.42, 0.20, 0.02, M.pianoBlack, 0, 0, 0, binn);
     anchors.cluster = new THREE.Object3D(); anchors.cluster.position.set(0, 0, 0.011); binn.add(anchors.cluster);
     // quarter-arch over the top (from the crest backwards) + flat visor reaching forward over the cluster
-    const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.42, 18, 1, true, Math.PI / 2, Math.PI / 2), M.rep('dashSoft', 2, 1));
+    const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.48, 18, 1, true, Math.PI / 2, Math.PI / 2), M.rep('dashSoft', 2, 1));
     hood.material.side = THREE.DoubleSide;
     hood.rotation.z = Math.PI / 2; hood.position.set(0, 0.02, -0.02); add(hood, binn);
-    const visor = box(0.42, 0.012, 0.24, M.rep('dashSoft', 2, 1), 0, 0.135, 0.08, binn); visor.rotation.x = 4 * DEG;
-    box(0.42, 0.012, 0.02, M.pianoBlack, 0, 0.13, 0.20, binn); // visor lip
+    const visor = box(0.48, 0.012, 0.24, M.rep('dashSoft', 2, 1), 0, 0.145, 0.08, binn); visor.rotation.x = 4 * DEG;
+    box(0.48, 0.012, 0.02, M.pianoBlack, 0, 0.14, 0.20, binn); // visor lip
     // bezel around the cluster
-    box(0.38, 0.012, 0.03, M.dashDark, 0, -0.09, 0.005, binn);
-    box(0.012, 0.19, 0.03, M.dashDark, -0.185, 0.0, 0.005, binn); box(0.012, 0.19, 0.03, M.dashDark, 0.185, 0.0, 0.005, binn);
+    box(0.44, 0.012, 0.03, M.dashDark, 0, -0.105, 0.005, binn);
+    box(0.012, 0.22, 0.03, M.dashDark, -0.215, 0.0, 0.005, binn); box(0.012, 0.22, 0.03, M.dashDark, 0.215, 0.0, 0.005, binn);
   }
 
   // ---------------------------------------------------------------- steering column

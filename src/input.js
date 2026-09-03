@@ -24,7 +24,7 @@ export function createInput(canvas, hooks = {}) {
     KeyQ: 'signalL', KeyE: 'signalR', KeyZ: 'hazards', KeyL: 'lights', KeyX: 'wipers', KeyT: 'transmission',
     KeyR: 'radio', KeyI: 'ignition', KeyB: 'seatbelt', KeyN: 'navZoom', KeyF: 'domeLight', KeyH: 'hornDown',
     Digit1: 'gear1', Digit2: 'gear2', Digit3: 'gear3', Digit4: 'gear4', Digit5: 'gear5', Digit6: 'gearR', Digit0: 'gearN',
-    F3: 'perf', Escape: 'pause', KeyP: 'pause', KeyM: 'mode',
+    F3: 'perf', Escape: 'pause', KeyP: 'pause', KeyM: 'mode', Backspace: 'reset', KeyK: 'keys',
   };
   const ALWAYS = new Set(['F3', 'Escape', 'KeyP']);
 
@@ -32,7 +32,7 @@ export function createInput(canvas, hooks = {}) {
     if (e.repeat) return;
     if (!I.enabled && !ALWAYS.has(e.code)) return;
     keys.add(e.code); pressed.add(e.code);
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'F3'].includes(e.code)) e.preventDefault();
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'F3', 'Backspace'].includes(e.code)) e.preventDefault();
     if (e.code === 'Escape' && hooks.onEscape) hooks.onEscape();
     if (e.code === 'F3' && hooks.onPerf) hooks.onPerf();
   });

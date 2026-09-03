@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { clamp, MPH_TO_MPS } from '../units.js';
 import { createRng } from '../rng.js';
+import { makeCarGeometries } from '../world/carshape.js';
 
 export function createTraffic(scene, roads, driver, car, opts = {}) {
   const N = opts.count || 36;
@@ -12,22 +13,21 @@ export function createTraffic(scene, roads, driver, car, opts = {}) {
   const colors = [0xd8dce0, 0x1c1f24, 0x8a1c1c, 0x2c4a8a, 0xe8e6df, 0x3f5f3a, 0x6f6f72, 0xb8742c, 0xc9a227, 0x5a2d82];
 
   // ---- meshes
-  const bodyG = new THREE.BoxGeometry(1.78, 0.6, 4.4); bodyG.translate(0, 0.62, 0);
-  const hoodG = new THREE.BoxGeometry(1.7, 0.28, 1.4); hoodG.translate(0, 0.95, -1.35);
-  const cabinG = new THREE.BoxGeometry(1.62, 0.55, 2.3); cabinG.translate(0, 1.2, 0.25);
-  const wheelG = new THREE.CylinderGeometry(0.31, 0.31, 0.22, 12); wheelG.rotateZ(Math.PI / 2);
+  const CG = makeCarGeometries(1.76);
+  const bodyG = CG.bodyG, hoodG = CG.hubG, cabinG = CG.glassG, wheelG = CG.wheelG; // hoods slot reused for hubs (4 per car below)
   const lampG = new THREE.PlaneGeometry(0.34, 0.14);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.5, envMapIntensity: 1.2 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.32, metalness: 0.55, envMapIntensity: 1.3 });
+  const hubMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, roughness: 0.4, metalness: 0.8 });
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x1a232b, roughness: 0.12, metalness: 0.3 });
   const tyreMat = new THREE.MeshStandardMaterial({ color: 0x151516, roughness: 0.9 });
   const tailMat = new THREE.MeshStandardMaterial({ color: 0x4a0a0a, emissive: 0xff2010, emissiveIntensity: 0, roughness: 0.3 });
   const headMat = new THREE.MeshStandardMaterial({ color: 0xd8dde3, emissive: 0xfff2dc, emissiveIntensity: 0, roughness: 0.2 });
-  const bodies = new THREE.InstancedMesh(bodyG, bodyMat, N), hoods = new THREE.InstancedMesh(hoodG, bodyMat, N), cabins = new THREE.InstancedMesh(cabinG, glassMat, N);
+  const bodies = new THREE.InstancedMesh(bodyG, bodyMat, N), hoods = new THREE.InstancedMesh(hoodG, hubMat, N * 4), cabins = new THREE.InstancedMesh(cabinG, glassMat, N);
   const wheels = new THREE.InstancedMesh(wheelG, tyreMat, N * 4), tails = new THREE.InstancedMesh(lampG, tailMat, N * 2), heads = new THREE.InstancedMesh(lampG, headMat, N * 2);
   for (const im of [bodies, hoods, cabins, wheels, tails, heads]) { im.frustumCulled = false; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = im !== tails && im !== heads; im.layers.enable(2); scene.add(im); }
   const col = new THREE.Color();
-  for (let i = 0; i < N; i++) { bodies.setColorAt(i, col.setHex(colors[i % colors.length])); hoods.setColorAt(i, col); }
-  bodies.instanceColor.needsUpdate = true; hoods.instanceColor.needsUpdate = true;
+  for (let i = 0; i < N; i++) bodies.setColorAt(i, col.setHex(colors[i % colors.length]));
+  bodies.instanceColor.needsUpdate = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), d = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), hidden = new THREE.Matrix4().makeScale(0, 0, 0);
 
   // ---- pool
@@ -38,7 +38,7 @@ export function createTraffic(scene, roads, driver, car, opts = {}) {
   function spawn(agent) {
     for (let tries = 0; tries < 30; tries++) {
       const lane = lanes[Math.floor(rng() * lanes.length)];
-      if (lane.seg.type === 'lot') continue;
+      if (lane.seg.type === 'lot' || lane.seg.type === 'pier') continue;
       const t = rng() * Math.max(1, lane.seg.length - 20) + 5;
       const s = driver.sFromT(lane.seg, lane.k, t);
       roads.lanePoint(lane.seg, lane.k, s, p);
@@ -138,14 +138,14 @@ export function createTraffic(scene, roads, driver, car, opts = {}) {
     // render
     for (const ag of agents) {
       const i = ag.id;
-      if (!ag.active) { bodies.setMatrixAt(i, hidden); hoods.setMatrixAt(i, hidden); cabins.setMatrixAt(i, hidden); for (let k = 0; k < 4; k++) wheels.setMatrixAt(i * 4 + k, hidden); for (let k = 0; k < 2; k++) { tails.setMatrixAt(i * 2 + k, hidden); heads.setMatrixAt(i * 2 + k, hidden); } continue; }
+      if (!ag.active) { bodies.setMatrixAt(i, hidden); cabins.setMatrixAt(i, hidden); for (let k = 0; k < 4; k++) { wheels.setMatrixAt(i * 4 + k, hidden); hoods.setMatrixAt(i * 4 + k, hidden); } for (let k = 0; k < 2; k++) { tails.setMatrixAt(i * 2 + k, hidden); heads.setMatrixAt(i * 2 + k, hidden); } continue; }
       q.setFromEuler(e.set(0, ag.yaw, 0)); m4.compose(ag.pos, q, sc);
-      bodies.setMatrixAt(i, m4); hoods.setMatrixAt(i, m4); cabins.setMatrixAt(i, m4);
+      bodies.setMatrixAt(i, m4); cabins.setMatrixAt(i, m4);
       const c = Math.cos(ag.yaw), s = Math.sin(ag.yaw);
       const local = (lx, ly, lz) => p.set(ag.pos.x + lx * c + lz * s, ag.pos.y + ly, ag.pos.z - lx * s + lz * c);
       // wheel spin
       const spinQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-(ag.v * (ag.blinkT)) % (Math.PI * 2), ag.yaw, 0, 'YXZ'));
-      [[0.82, 1.4], [-0.82, 1.4], [0.82, -1.4], [-0.82, -1.4]].forEach(([wx, wz], k) => { m4.compose(local(wx, 0.31, -wz), spinQ, sc); wheels.setMatrixAt(i * 4 + k, m4); });
+      CG.wheelOffsets.forEach(([wx, wz], k) => { m4.compose(local(wx, 0.31, wz), spinQ, sc); wheels.setMatrixAt(i * 4 + k, m4); hoods.setMatrixAt(i * 4 + k, m4); });
       // lamps: tails at the rear (+z), heads at the front (−z); planes face outward
       const backQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ag.yaw, 0)), frontQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ag.yaw + Math.PI, 0));
       m4.compose(local(-0.6, 0.85, 2.21), backQ, sc); tails.setMatrixAt(i * 2, m4); m4.compose(local(0.6, 0.85, 2.21), backQ, sc); tails.setMatrixAt(i * 2 + 1, m4);

@@ -15,7 +15,9 @@ const COURSES = [
   { name: 'Canyon Pass', pts: [['canyon', 0.05], ['canyon', 0.5], ['canyon', 0.95]] },
 ];
 
-export function createModes({ game, car, roads, driver, router, nav, hud, events, rules, save, traffic, menu }) {
+export function createModes({ game, car, roads, driver, router, nav, hud, events, rules, save, traffic, menu, voice }) {
+  const say = (n) => { if (voice) voice.nav(n); };
+  const spoken = { far: null, near: null };
   const rng = createRng(0xdeadbeef);
   const segById = (id) => roads.segments.find((s) => s.id === id);
   const posOn = (seg, frac) => { const s = seg.length * frac; return { seg, s, pos: roads.sampleAt(seg, s).p.clone() }; };
@@ -58,6 +60,8 @@ export function createModes({ game, car, roads, driver, router, nav, hud, events
       nav.S.poi = [{ x: pick.pos.x, z: pick.pos.z, color: '#ff7a3c' }];
       hud.setObjective(`Deliver to ${pick.name}. Follow the nav.`);
       hud.toast(`NEW DELIVERY · ${pick.name.toUpperCase()}`, 'good', 3);
+      if (voice) { voice.dispatch('dispatch_new'); say('nav_start'); }
+      spoken.far = null; spoken.near = null;
       this.routeT = 9;
     },
     update(dt) {
@@ -67,13 +71,21 @@ export function createModes({ game, car, roads, driver, router, nav, hud, events
       if (this.routeT > 1) {
         this.routeT = 0;
         const rt = routeTo(j.dest);
-        if (rt) { const next = rt.d.turns[0]; nav.setRoute(rt.d.pts, next ? { icon: turnIcon(next.turn), text: turnText(next), dist: next.dist } : null, `${Math.ceil(rt.r.eta / 60)} min`); }
+        if (rt) {
+          const next = rt.d.turns[0]; nav.setRoute(rt.d.pts, next ? { icon: turnIcon(next.turn), text: turnText(next), dist: next.dist } : null, `${Math.ceil(rt.r.eta / 60)} min`);
+          if (next && next.turn !== 'END') {
+            const key = `${next.inter && next.inter.id}|${next.turn}`;
+            if (next.dist < 110 && next.dist > 40 && spoken.far !== key) { spoken.far = key; say(next.turn === 'L' ? 'nav_left_300' : next.turn === 'R' ? 'nav_right_300' : 'nav_straight'); }
+            if (next.dist <= 40 && spoken.near !== key) { spoken.near = key; say(next.turn === 'L' ? 'nav_left' : next.turn === 'R' ? 'nav_right' : next.turn === 'U' ? 'nav_uturn' : 'nav_straight'); }
+          }
+        }
         else nav.setRoute(null, { icon: '?', text: 'NO ROUTE — find a road', dist: 0 }, '');
       }
       if (distTo(j.dest.pos) < 14 && car.S.speed < 1.5) {
         const bonus = j.t < j.par ? 25 : 0; const pay = 40 + Math.round((car.S.odometer - j.dist0) * 12) + bonus;
         this.earnings += pay; this.done++; save.set('earnings', this.earnings);
         hud.toast(`DELIVERED · +$${pay}${bonus ? ' (on time)' : ''}`, 'good', 3.5);
+        say('nav_arrived'); if (voice) voice.dispatch('dispatch_done');
         this.newJob();
       }
     },

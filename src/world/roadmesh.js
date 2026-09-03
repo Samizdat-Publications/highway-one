@@ -9,8 +9,8 @@ export function buildRoadMesh(roads, terrain, M, T, collide) {
   const push = (mat, geo) => { if (!buckets.has(mat)) buckets.set(mat, []); buckets.get(mat).push(geo); };
   const up = new THREE.Vector3(0, 1, 0);
 
-  const texFor = (seg) => seg.type === 'avenue' ? 'road4' : seg.type === 'street' ? 'street' : seg.type === 'lot' ? 'asphalt' : seg.type === 'side' ? 'road2' : 'road2';
-  const texWidth = { road4: 15.6, street: 11, asphalt: 8, road2: 8 };
+  const texFor = (seg) => seg.type === 'avenue' ? 'road4' : seg.type === 'street' ? 'street' : seg.type === 'lot' ? 'asphalt' : seg.type === 'pier' ? 'pierDeck' : seg.type === 'side' ? 'road2' : 'road2';
+  const texWidth = { road4: 15.6, street: 11, asphalt: 8, road2: 8, pierDeck: 8 };
 
   // ribbon from lateral offsets (m) per sample in [s0, s1]; y offset; uv u across 0..1 (or world-based), v = s/12
   function ribbon(seg, offsets, s0, s1, yOff, uMode, ySampler) {

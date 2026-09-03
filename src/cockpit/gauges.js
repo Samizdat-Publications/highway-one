@@ -20,7 +20,7 @@ export function buildGauges(M, anchors, car, game) {
   const g = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.anisotropy = 8;
   const mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.0, roughness: 0.5, metalness: 0 });
-  const PW = 0.34, PH = PW * H / W;
+  const PW = 0.40, PH = PW * H / W;
   const face = new THREE.Mesh(new THREE.PlaneGeometry(PW, PH), mat); face.frustumCulled = false; anchors.cluster.add(face);
   const px = (x) => (x / W - 0.5) * PW, py = (y) => (0.5 - y / H) * PH;
 
@@ -108,18 +108,20 @@ export function buildGauges(M, anchors, car, game) {
     // LCD
     const lcdOn = game.ignitionOn || on;
     g.fillStyle = lcdOn ? '#c8dfe6' : '#1a1f22';
-    g.font = '700 74px "Segoe UI", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(lcdOn ? car.drivetrain.gearLabel() : '', 512, 215);
+    g.font = '700 60px "Segoe UI", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(lcdOn ? car.drivetrain.gearLabel() : '', 512, 195);
+    g.font = '700 44px "Cascadia Mono", Consolas, monospace'; g.fillText(lcdOn ? String(Math.round(S.speedMph)) : '', 512, 246);
+    g.font = '600 16px "Segoe UI", Helvetica, Arial, sans-serif'; g.fillStyle = lcdOn ? '#7d9299' : '#1a1f22'; g.fillText(lcdOn ? 'MPH' : '', 512, 272); g.fillStyle = lcdOn ? '#c8dfe6' : '#1a1f22';
     g.font = '500 20px "Segoe UI", Helvetica, Arial, sans-serif';
-    if (D.mode === 'auto' && lcdOn) { const order = ['P', 'R', 'N', 'D']; let s = ''; g.font = '600 22px "Segoe UI", Helvetica, Arial, sans-serif'; order.forEach((k, i) => { g.fillStyle = k === D.sel ? '#c8dfe6' : '#3a4448'; g.fillText(k, 470 + i * 28, 262); }); }
-    else if (lcdOn) { g.fillStyle = '#7d9299'; g.fillText(D.mode === 'manualH' ? 'MANUAL' : 'SEQ', 512, 262); }
+    if (D.mode === 'auto' && lcdOn) { const order = ['P', 'R', 'N', 'D']; g.font = '600 20px "Segoe UI", Helvetica, Arial, sans-serif'; order.forEach((k, i) => { g.fillStyle = k === D.sel ? '#c8dfe6' : '#3a4448'; g.fillText(k, 470 + i * 28, 296); }); }
+    else if (lcdOn) { g.fillStyle = '#7d9299'; g.font = '600 18px "Segoe UI", Helvetica, Arial, sans-serif'; g.fillText(D.mode === 'manualH' ? 'MANUAL' : 'SEQ', 512, 296); }
     g.fillStyle = lcdOn ? '#c8dfe6' : '#1a1f22';
-    g.font = '500 26px "Cascadia Mono", Consolas, monospace';
-    g.fillText(lcdOn ? fmtClock(game.hour) : '', 512, 300);
-    g.font = '500 24px "Cascadia Mono", Consolas, monospace';
-    g.fillText(lcdOn ? `${Math.floor(S.odometer).toString().padStart(6, '0')} mi` : '', 512, 336);
+    g.font = '500 22px "Cascadia Mono", Consolas, monospace';
+    g.fillText(lcdOn ? fmtClock(game.hour) : '', 512, 324);
     g.font = '500 20px "Cascadia Mono", Consolas, monospace';
-    g.fillText(lcdOn ? `TRIP ${S.trip.toFixed(1)}` : '', 512, 364);
+    g.fillText(lcdOn ? `${Math.floor(S.odometer).toString().padStart(6, '0')} mi` : '', 512, 350);
+    g.font = '500 17px "Cascadia Mono", Consolas, monospace';
+    g.fillText(lcdOn ? `TRIP ${S.trip.toFixed(1)}` : '', 512, 372);
     tex.needsUpdate = true;
   }
 
@@ -135,7 +137,7 @@ export function buildGauges(M, anchors, car, game) {
     tachN.rotation.z = -angleFor(TACH, tp.x);
     fuelN.rotation.z = -((-60 + 120 * clamp(fp.x, 0, 1)) * DEG);
     tempN.rotation.z = -((-60 + 120 * clamp(tmp.x, 0, 1)) * DEG);
-    mat.emissiveIntensity = on ? lerp(0.55, 1.0, night) * game.dashDim : 0;
+    mat.emissiveIntensity = on ? lerp(0.85, 1.1, night) * game.dashDim : 0;
     acc += dt; if (acc > 0.1) { acc = 0; drawDynamic(); }
   }
   drawDynamic();

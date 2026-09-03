@@ -18,7 +18,7 @@ export function createRoads() {
     const seg = {
       id: o.id, a, b, ctrl: (o.ctrl || []).map((c) => new THREE.Vector3(c[0], c[1], c[2])),
       type: o.type || 'street', lanesF: o.lanes || 1, lanesB: o.lanes || 1, laneW: o.laneW || (o.type === 'street' ? 3.2 : 3.5),
-      shoulder: o.shoulder != null ? o.shoulder : (o.type === 'highway' ? 0.8 : o.type === 'avenue' ? 0.8 : o.type === 'street' ? 2.3 : 0.5),
+      shoulder: o.shoulder != null ? o.shoulder : (o.type === 'highway' ? 0.8 : o.type === 'avenue' ? 0.8 : o.type === 'street' ? 2.3 : o.type === 'pier' ? 0.3 : 0.5),
       sidewalk: !!o.sidewalk, parking: !!o.parking, limitMph: o.limit || 25, tunnel: o.tunnel || null, bridge: o.bridge || null,
       rail: o.rail || null, name: o.name || o.id, tex: o.tex || null, samples: [], length: 0, hw: 0, index: segments.length, tunnelZ: o.tunnelZ || null, bridgeZ: o.bridgeZ || null,
     };

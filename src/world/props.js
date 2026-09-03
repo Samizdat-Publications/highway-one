@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createRng } from '../rng.js';
+import { makeCarGeometries } from './carshape.js';
 
 export function buildProps(scene, roads, terrain, M, T, collide, lighting, signals) {
   const rng = createRng(0x5a17);
@@ -19,7 +20,7 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x5a5e62, roughness: 0.6, metalness: 0.7 });
   const lampHead = new THREE.MeshStandardMaterial({ color: 0xd9dde0, emissive: 0xffe2b0, emissiveIntensity: 0, roughness: 0.4 });
   const signalBody = new THREE.MeshStandardMaterial({ color: 0x1f2a1a, roughness: 0.7 });
-  const trunkMat = new THREE.MeshStandardMaterial({ map: T.canvasTex(128, 256, (g, w, h) => { g.fillStyle = '#7a5f45'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 14) { g.fillStyle = `rgba(40,25,15,${0.25 + Math.random() * 0.3})`; g.fillRect(0, y, w, 5); g.fillStyle = 'rgba(200,170,130,0.15)'; g.fillRect(0, y + 6, w, 3); } }, { repeat: [1, 3] }), roughness: 0.9 });
+  const trunkMat = new THREE.MeshStandardMaterial({ map: T.photoTex('palmbark', { repeat: [1, 3] }) || T.canvasTex(128, 256, (g, w, h) => { g.fillStyle = '#7a5f45'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 14) { g.fillStyle = `rgba(40,25,15,${0.25 + Math.random() * 0.3})`; g.fillRect(0, y, w, 5); g.fillStyle = 'rgba(200,170,130,0.15)'; g.fillRect(0, y + 6, w, 3); } }, { repeat: [1, 3] }), roughness: 0.9 });
   const frondTex = T.canvasTex(256, 64, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     g.fillStyle = '#2f6b2a'; g.beginPath(); g.moveTo(0, h / 2);
@@ -173,9 +174,8 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
   if (crosswalkGeos.length) { const m = new THREE.Mesh(mergeGeometries(crosswalkGeos.map((g) => g.index ? g.toNonIndexed() : g)), crosswalkMat); m.renderOrder = 2; m.layers.enable(2); group.add(m); }
 
   // ------------------------------------------------------------------ parked cars (instanced per colour)
-  const bodyG = new THREE.BoxGeometry(1.76, 0.62, 4.3); bodyG.translate(0, 0.62, 0);
-  const cabinG = new THREE.BoxGeometry(1.6, 0.5, 2.2); cabinG.translate(0, 1.16, 0.15);
-  const wheelG = new THREE.CylinderGeometry(0.31, 0.31, 0.2, 12); wheelG.rotateZ(Math.PI / 2);
+  const CG = makeCarGeometries(1.76);
+  const bodyG = CG.bodyG, cabinG = CG.glassG, wheelG = CG.wheelG;
   const parked = [];
   for (const seg of roads.segments) {
     if (!seg.parking) continue;
@@ -198,7 +198,7 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
     const bodies = new THREE.InstancedMesh(bodyG, carMats[ci], list.length), cabins = new THREE.InstancedMesh(cabinG, glassMat, list.length), wheels = new THREE.InstancedMesh(wheelG, M.tyre, list.length * 4);
     list.forEach((p, i) => {
       q.setFromEuler(e.set(0, p.yaw, 0)); m4.compose(v.set(p.x, p.y, p.z), q, sc.set(1, 1, 1)); bodies.setMatrixAt(i, m4); cabins.setMatrixAt(i, m4);
-      [[0.8, 1.35], [-0.8, 1.35], [0.8, -1.35], [-0.8, -1.35]].forEach(([wx, wz], k) => { const lx = wx * Math.cos(p.yaw) + wz * Math.sin(p.yaw), lz = -wx * Math.sin(p.yaw) + wz * Math.cos(p.yaw); m4.compose(v.set(p.x + lx, p.y + 0.31, p.z + lz), q, sc); wheels.setMatrixAt(i * 4 + k, m4); });
+      CG.wheelOffsets.forEach(([wx, wz], k) => { const lx = wx * Math.cos(p.yaw) + wz * Math.sin(p.yaw), lz = -wx * Math.sin(p.yaw) + wz * Math.cos(p.yaw); m4.compose(v.set(p.x + lx, p.y + 0.31, p.z + lz), q, sc); wheels.setMatrixAt(i * 4 + k, m4); });
     });
     for (const im of [bodies, cabins, wheels]) { im.castShadow = true; im.computeBoundingSphere(); im.layers.enable(2); group.add(im); }
   }

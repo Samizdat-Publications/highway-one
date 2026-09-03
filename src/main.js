@@ -17,6 +17,7 @@ import { createWeather } from './weather.js';
 import { createSignals } from './world/signals.js';
 import { buildProps } from './world/props.js';
 import { buildTown } from './world/town.js';
+import { buildPier } from './world/pier.js';
 import { createDriver } from './traffic/driver.js';
 import { createTraffic } from './traffic/agents.js';
 import { createBot } from './traffic/bot.js';
@@ -25,6 +26,7 @@ import { createEngineAudio } from './audio/engine.js';
 import { createSfx } from './audio/sfx.js';
 import { createAmbient } from './audio/ambient.js';
 import { createRadioAudio } from './audio/radio.js';
+import { createVoice } from './audio/voice.js';
 import { createSave } from './save.js';
 import { createGamepad } from './gamepad.js';
 import { createRouter } from './modes/route.js';
@@ -52,7 +54,7 @@ const VW = () => window.innerWidth || 1280, VH = () => window.innerHeight || 720
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(VW(), VH());
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.92;
 renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
@@ -64,7 +66,11 @@ const game = { state: 'menu', time: 0, timeScale: 1, hour: 15.5, ignitionOn: fal
 
 const hud = createHUD();
 const menu = createMenu({ onStart: start, onResume: resume, onMainMenu: toMainMenu, onOption: applyOption });
-const T = makeTextures(CONFIG.world.seed);
+// photo tiles (optional; the canvases stand in for anything missing)
+const TEX_FILES = ['asphalt', 'concrete', 'sand', 'grass', 'rock', 'decking', 'facade_stucco', 'facade_deco', 'facade_brick', 'roof', 'palmbark'];
+const images = {};
+await Promise.all(TEX_FILES.map((n) => new Promise((res) => { const im = new Image(); im.onload = () => { images[n] = im; res(); }; im.onerror = () => res(); im.src = `./assets/textures/${n}.jpg`; })));
+const T = makeTextures(CONFIG.world.seed, images);
 const M = makeMaterials(T);
 const sky = createSky(scene);
 const Q = CONFIG.quality[menu.opts.quality] || CONFIG.quality.high;
@@ -79,6 +85,7 @@ const ocean = buildOcean(scene, terrain, sky, T);
 const signals = createSignals(roads);
 const props = buildProps(scene, roads, terrain, M, T, collide, lighting, signals);
 const town = buildTown(scene, roads, terrain, M, T, collide, lighting);
+const pier = buildPier(scene, roads, terrain, M, T, collide, lighting);
 const driver = createDriver(roads, signals);
 const world = {
   roads, terrain, collide,
@@ -125,15 +132,22 @@ const sfx = createSfx(audio, car);
 const ambientAudio = createAmbient(audio, car, terrain);
 radio.ignition = () => game.ignitionOn;
 const radioAudio = createRadioAudio(audio, radio);
+const voice = createVoice(audio, radio, radioAudio);
 document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else if (game.state === 'playing') audio.resume(); });
 const save = createSave();
 const gamepad = createGamepad(input.I, save);
 const router = createRouter(roads, driver);
 const events = createEvents();
 const rules = createRulesMonitor(events, car, roads, signals, driver, collide);
-const modes = createModes({ game, car, roads, driver, router, nav, hud, events, rules, save, traffic, menu });
+const modes = createModes({ game, car, roads, driver, router, nav, hud, events, rules, save, traffic, menu, voice });
 car.S.odometer = save.get('odometer', car.S.odometer);
 setInterval(() => save.set('odometer', car.S.odometer), 15000);
+
+// ---------------------------------------------------------------- hotkey panel
+const keysPanel = document.getElementById('keys');
+function toggleKeysPanel(force) { const collapsed = force != null ? !force : !keysPanel.classList.contains('collapsed'); keysPanel.classList.toggle('collapsed', collapsed); try { localStorage.setItem('highwayone_keys', collapsed ? '0' : '1'); } catch (e) { /* ignore */ } }
+try { if (localStorage.getItem('highwayone_keys') === '0') keysPanel.classList.add('collapsed'); } catch (e) { /* ignore */ }
+document.getElementById('keys-toggle').addEventListener('click', () => toggleKeysPanel());
 
 // ---------------------------------------------------------------- options
 function applyOption(k, v) {
@@ -192,12 +206,47 @@ function handleEdges(I) {
   if (E.seatbelt) { S.seatbelt = !S.seatbelt; sfx.chime(); }
   S.hornOn = !!I.hornHeld;
   if (E.domeLight) L.dome = !L.dome;
+  if (E.reset) resetToRoad();
+  if (E.keys) toggleKeysPanel();
   // signal auto-cancel after the wheel returns from a turn
   if (L.signal) {
     const sd = S.steerWheelDeg;
     if (!L.sigArmed && Math.abs(sd) > 60 && Math.sign(sd) === (L.signal === 'L' ? -1 : 1)) L.sigArmed = true;
     if (L.sigArmed && Math.abs(sd) < 15) { L.signal = null; L.sigArmed = false; }
   } else L.sigArmed = false;
+}
+
+// Automatic-gearbox convenience: hold the brake at a standstill to select reverse, then the brake key
+// becomes reverse throttle; press the throttle at a standstill to go back to Drive.
+const RA = { holdT: 0, auto: false };
+function reverseAssist(dt, I) {
+  const D = car.drivetrain.S; if (D.mode !== 'auto' || game.state !== 'playing') return;
+  const stopped = car.S.speed < 0.3;
+  if (D.sel === 'D' && stopped && I.brake > 0.5 && I.throttle < 0.05) { RA.holdT += dt; if (RA.holdT > 0.45) { car.drivetrain.requestSequential(-1, 0); car.drivetrain.requestSequential(-1, 0); RA.auto = true; RA.holdT = 0; hud.toast('REVERSE - hold S to back up, W for drive', '', 2.5); } }
+  else RA.holdT = 0;
+  if (D.sel === 'R' && RA.auto) {
+    if (I.throttle > 0.05 && stopped) { car.drivetrain.requestSequential(1, 0); car.drivetrain.requestSequential(1, 0); RA.auto = false; hud.toast('DRIVE', '', 1.2); return; }
+    if (car.S.vFwd < 0.5) { const b = I.brake; I.brake = I.throttle; I.throttle = b; } // S = reverse throttle, W = brake while backing up
+  }
+  if (D.sel !== 'R') RA.auto = false;
+}
+const SW = { t: 0, hinted: false };
+function stuckWatch(dt, I) {
+  if (game.state !== 'playing') return;
+  if (car.S.speed < 0.2 && (I.throttle > 0.5 || I.brake > 0.5) && car.drivetrain.S.sel !== 'P' && car.drivetrain.S.sel !== 'N') { SW.t += dt; if (SW.t > 5 && !SW.hinted) { SW.hinted = true; hud.toast('STUCK? BACKSPACE puts you back on the road', 'bad', 4); } }
+  else { SW.t = 0; SW.hinted = false; }
+}
+function resetToRoad() {
+  const near = roads.nearest(car.S.x, car.S.z, 120); if (!near) return;
+  const seg = near.seg, sm = roads.sampleAt(seg, near.s);
+  // lane on the right of whichever direction is closer to the car's heading
+  const fwd = -Math.sin(car.S.yaw) * sm.t.x + -Math.cos(car.S.yaw) * sm.t.z;
+  const k = fwd >= 0 ? 1 : -1;
+  const p = roads.lanePoint(seg, k, near.s), d = roads.laneDir(seg, k, near.s);
+  car.teleport(p.x, p.z, Math.atan2(-d.x, -d.z));
+  if (car.drivetrain.S.mode === 'auto') { car.drivetrain.S.sel = 'D'; car.drivetrain.S.gear = 1; car.drivetrain.S.G = car.drivetrain.ratio(1); } else car.drivetrain.requestGear(0);
+  if (!car.engine.S.running) { game.ignitionOn = true; car.engine.start(); }
+  RA.auto = false; syncVisuals(); hud.toast('BACK ON THE ROAD', '', 1.5);
 }
 
 // ---------------------------------------------------------------- fixed-step loop
@@ -212,6 +261,8 @@ function simStep(dt) {
   if (I.handbrakeLatch) I.handbrake = 1;
   if (game.state === 'playing') handleEdges(I);
   else { I.throttle = 0; I.brake = Math.max(I.brake, 0); }
+  reverseAssist(dt, I);
+  stuckWatch(dt, I);
   car.step(dt, I);
   collide.resolveCar(car, traffic.nearBoxes(car.S.x, car.S.z, 12));
   signals.update(dt);
@@ -246,14 +297,15 @@ function render(dt) {
   gauges.update(dt, sky.S.night);
   vlights.update(dt, sky.S.night);
   radio.update(dt);
-  engineAudio.update(dt); sfx.update(dt, weather, car.S.inTunnel); ambientAudio.update(dt); radioAudio.update(dt);
+  engineAudio.update(dt); sfx.update(dt, weather, car.S.inTunnel); ambientAudio.update(dt); radioAudio.update(dt); voice.update(dt);
   nav.update(dt, roads.surfaceAt(car.S.x, car.S.z));
   sky.setHour(game.hour);
   weather.update(dt);
-  sky.update(camera);
+  sky.update(camera, dt);
   sky.refreshEnvironment(renderer);
   ocean.update(dt);
   town.update(dt, sky.S.night, lighting.S.streetOn);
+  pier.update(dt, lighting.S.streetOn);
   props.lampHead.emissiveIntensity = lighting.S.streetOn ? 2.5 : 0;
   car.S.inTunnel = !!roads.surfaceAt(car.S.x, car.S.z).tunnel;
   carRoot.updateMatrixWorld(true);
@@ -297,10 +349,11 @@ requestAnimationFrame(frame);
 
 // ---------------------------------------------------------------- test hooks
 window.__game = {
-  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, signals, props, town, driver, traffic, bot, audio, modes, router, rules, events, gamepad, save, menu, hud, gauges, interior, exterior,
+  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, signals, props, town, pier, driver, traffic, bot, audio, voice, modes, router, rules, events, gamepad, save, menu, hud, gauges, interior, exterior,
   start, pause, resume,
   tick(n = 1, dt = DT) { for (let i = 0; i < n; i++) simStep(dt); render(dt * n); },
   teleport(x, z, yaw = 0) { car.teleport(x, z, yaw); syncVisuals(); },
+  resetToRoad,
   setTime(h) { game.hour = h; sky.setHour(h); },
   setWeather(kind, instant = true) { weather.set(kind, instant); },
   // free camera for inspecting the world from above: debugShot(x,y,z, tx,ty,tz [,fov]); debugShot(null) restores the rig

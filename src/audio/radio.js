@@ -5,7 +5,7 @@ import { clamp } from '../units.js';
 const KEYS = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88];
 export function createRadioAudio(audio, radioDisplay) {
   const { A, param } = audio;
-  let n = null, cur = null, sched = { surf: 0, jazz: 0, talk: 0 }, staticT = 0, lastIndex = -1, lastOn = false;
+  let n = null, cur = null, sched = { surf: 0, jazz: 0, talk: 0 }, staticT = 0, lastIndex = -1, lastOn = false, duckT = 0, duckLevel = 0.35;
   function build() {
     const ctx = A.ctx;
     const speaker = ctx.createBiquadFilter(); speaker.type = 'bandpass'; speaker.frequency.value = 900; speaker.Q.value = 0.35;
@@ -74,7 +74,8 @@ export function createRadioAudio(audio, radioDisplay) {
     if (staticT > 0) staticT -= dt;
     const st = on ? (staticT > 0 ? clamp(staticT / 0.6, 0, 1) : 0) : 0;
     param(n.sG.gain, st * 0.25, 0.05);
-    param(n.vol.gain, on ? R.volume : 0, 0.1);
+    duckT = Math.max(0, duckT - dt);
+    param(n.vol.gain, on ? R.volume * (duckT > 0 ? duckLevel : 1) : 0, 0.15);
     const station = on ? radioDisplay.S.station : null;
     const id = station ? station.id : null;
     const until = audio.now() + 0.6;
@@ -82,5 +83,6 @@ export function createRadioAudio(audio, radioDisplay) {
     if (id === 'jazz' && st < 0.5) scheduleJazz(until); else sched.jazz = Math.max(sched.jazz, until);
     if (id === 'talk' && st < 0.5) updateTalk(dt); else param(n.tG.gain, 0, 0.05);
   }
-  return { update };
+  function duck(seconds, level = 0.35) { duckT = seconds; duckLevel = level; }
+  return { update, duck };
 }

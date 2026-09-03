@@ -56,12 +56,17 @@ export function buildLayout(R) {
   for (const [z] of ewStreets) R.setControl(`G140_${z}`, 'signal');
   R.setControl('G230_-35', 'signal'); R.setControl('G320_-35', 'signal');
 
-  // ---- pier lot: Pier Ave continues west of Ocean Ave into a small loop
-  R.addNode('pierIn', -75, y, 105); R.addNode('pierA', -100, y - 0.3, 88); R.addNode('pierB', -100, y - 0.3, 124);
+  // ---- the pier: Pier Ave → ramp up to the deck → deck road along the pier → turnaround loop at the end
+  const PZ = 108, DY = 5.0;
+  R.addNode('pierIn', -60, y, 105); R.addNode('pierTop', -92, DY, PZ); R.addNode('pierEnd', -372, DY, PZ);
+  R.addNode('pE1', -392, DY, PZ - 11); R.addNode('pE2', -404, DY, PZ + 1); R.addNode('pE3', -392, DY, PZ + 12);
   R.addSegment({ id: 'pier0', a: 'O105', b: 'pierIn', type: 'street', lanes: 1, limit: 15, sidewalk: true, name: 'Pier Ave' });
-  R.addSegment({ id: 'pier1', a: 'pierIn', b: 'pierA', type: 'lot', lanes: 1, limit: 15, name: 'Pier Lot', ctrl: [[-86, y - 0.1, 94]] });
-  R.addSegment({ id: 'pier2', a: 'pierA', b: 'pierB', type: 'lot', lanes: 1, limit: 15, name: 'Pier Lot', ctrl: [[-112, y - 0.5, 106]] });
-  R.addSegment({ id: 'pier3', a: 'pierB', b: 'pierIn', type: 'lot', lanes: 1, limit: 15, name: 'Pier Lot', ctrl: [[-86, y - 0.1, 118]] });
+  R.addSegment({ id: 'pierRamp', a: 'pierIn', b: 'pierTop', type: 'lot', lanes: 1, limit: 10, name: 'Pier Ramp', ctrl: [[-72, y + 0.6, 106], [-84, DY - 0.6, 107.5]] });
+  R.addSegment({ id: 'pierDeck', a: 'pierTop', b: 'pierEnd', type: 'pier', lanes: 1, limit: 10, name: 'Pelican Point Pier' });
+  R.addSegment({ id: 'pierL1', a: 'pierEnd', b: 'pE1', type: 'pier', lanes: 1, limit: 10, name: 'Pier Turnaround', ctrl: [[-383, DY, PZ - 8]] });
+  R.addSegment({ id: 'pierL2', a: 'pE1', b: 'pE2', type: 'pier', lanes: 1, limit: 10, name: 'Pier Turnaround', ctrl: [[-401, DY, PZ - 7]] });
+  R.addSegment({ id: 'pierL3', a: 'pE2', b: 'pE3', type: 'pier', lanes: 1, limit: 10, name: 'Pier Turnaround', ctrl: [[-401, DY, PZ + 8]] });
+  R.addSegment({ id: 'pierL4', a: 'pE3', b: 'pierEnd', type: 'pier', lanes: 1, limit: 10, name: 'Pier Turnaround', ctrl: [[-383, DY, PZ + 9]] });
   R.setControl('pierIn', 'stop2');
   // Main St beach access west of Ocean Ave (short stub to a lot loop)
   R.addNode('beachIn', -75, y, -35); R.addNode('beachA', -98, y - 0.3, -52); R.addNode('beachB', -98, y - 0.3, -18);

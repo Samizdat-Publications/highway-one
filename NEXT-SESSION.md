@@ -1,33 +1,40 @@
-# NEXT-SESSION — checkpoint 2026-09-02 (first build day, all ten phases landed)
+# NEXT-SESSION — checkpoint 2026-09-02 (day 1, block 2: feedback pass + graphics)
 
 **Live:** https://samizdat-publications.github.io/highway-one/  ·  **Repo (public):** github.com/Samizdat-Publications/highway-one
-Deploy = push to `main` (GitHub Pages workflow, no build step). Dev server: `preview_start highway-one` (autoPort; the fixed port 8432 was busy on this machine) or `python serve.py 8432`.
+Deploy = push to `main`. Dev server: `preview_start highway-one` (autoPort) or `python serve.py 8432`.
 
-## Status: playable end to end, verified in the in-app browser with `__game.tick()`
-- **Car** (`src/vehicle/`): 120 Hz model — torque curve + ECU anti-stall governor, two-state clutch with bite point, auto (P R N D with torque-converter creep + shift logic) and manual (H-pattern keys 1–6/0, or sequential), Pacejka-lite tyres with semi-implicit wheel spin, ABS, handbrake, weight transfer, slope, visual suspension. Headless check: `node --import ./tools/node-three-register.mjs <script>` (see the physics test in the scratchpad history: 0–60 ≈ 11 s, 60–0 ≈ 37 m, idle creep 3.8 mph, 3rd-gear clutch dump stalls, limiter 6400).
-- **Cockpit** (`src/cockpit/`): merged procedural cabin, 900° wheel + stalks, canvas cluster (needles with lag, PRND/gear LCD, odometer, clock, 12 lamps), pedals/shifter/handbrake animation, wipers with a droplet mask the blades erase, three render-target mirrors (layer 2 = world only), headlights/brake/reverse/dome/signals, nav screen (heading-up map, route, next turn, ETA), radio display.
-- **World** (`src/world/`): road graph (lanes, intersections, bezier connectors, signal phases, `surfaceAt`), Pelican Point grid + Ocean Ave + pier lot + PCH north (tunnels at z ≈ −955/−2145, canyon bridge z ≈ −1310, Canyon Rd switchbacks, overlook loop) + PCH south lot; terrain with cliffs/hills/canyon/headlands flattened along corridors; ocean shader with surf; buildings with lit windows; pier + Ferris wheel; palms, street lights (8-light recycled pool), signal heads driven by `signals.js`, stop/speed signs, crosswalks, parked cars, benches.
-- **Weather** (`src/weather.js`): clear / fog / rain — fog density, rain sheet, wet-road material blend + grip, haze.
-- **Traffic** (`src/traffic/`): 36 instanced agents, IDM car-following, signals / stop signs / yields / box occupancy, turn choice with signals, player treated as a vehicle. `__game.bot.start()` autopilots the player for soaks (`__game.bot.report()`): 75 s on PCH with traffic = 0 collisions.
-- **Audio** (`src/audio/`): engine synth (exhaust harmonics + clipper, intake, limiter stutter, starter, stall, clunks), road/wind/squeal/indicator/wiper/horn/ABS/rain/collision, ocean/gulls/pier/town ambience with a cabin lowpass, tunnel reverb, three procedural radio stations + static. Not audible in the preview pane (needs a real browser).
-- **Modes** (`src/modes/`): free roam; deliveries (Dijkstra route on the lane graph → nav route line + turn prompts + par time + earnings persisted); driving test (rules monitor emits speeding / red light / stop sign / no signal / oncoming lane / off road / collision → score + report card); time trials (3 courses, splits, best times persisted).
-- **Input**: keyboard + mouse look (drag fallback), Gamepad API (Xbox standard map; wheels get an auto-guess map + `gamepad.startCalibration()`), options persisted (`highwayone_opts`).
+## What changed in block 2 (Stewart's first feedback)
+- **Reverse assist** (auto box): hold S at a standstill ≈ 0.5 s → R, S then backs up, W at a standstill → D. Shift/Ctrl still step P R N D. Manual modes untouched.
+- **Hotkey panel** bottom-right (K or its KEYS tab collapses; state persisted). **Backspace** = reset to the nearest lane; a toast hints at it after 5 s of being stuck.
+- **Cluster** bigger and backlit in daylight; digital MPH under the gear on the LCD; binnacle raised/tilted so both dials clear the wheel rim.
+- **Pier rebuilt as Pacific Park** (`src/world/pier.js` + `layout.js`): Pier Ave → ramp (lot type, terrain embankment) → deck road (`pier` type, decking texture, terrain not flattened) → turnaround loop at the end. Entrance arch + banner, carousel pavilion (spinning), Playland arcade + kiosks with awnings/signs, Ferris wheel (bulb chase at night), running West Coaster roller coaster (TubeGeometry track, 3-car train), scrambler, drop tower, bait shop, lamps (light-pool spots), benches, railings (colliders). Traffic never spawns on the pier but may wander onto it.
+- **Photo textures via Gemini** (`tools/gen_textures.py`, model `gemini-3.1-flash-image`, key in `secrets/gemini.txt`, outputs `assets/textures/*.jpg`, wrap-blended to tile): asphalt base under the baked markings, sidewalk concrete, sand, coastal scrub grass, cliff rock, decking, roof gravel, palm bark, three facades (stucco/deco/brick, cropped 6–94 % to drop the roof/sidewalk strips; the other three styles stay canvas so lit windows line up). Terrain now uses a **three-way splat** (grass/sand/rock weights per vertex, two-scale sampling to hide tiling) via `onBeforeCompile`. Everything falls back to the canvases if a JPG is missing.
+- **Clouds**: soft canvas cloud disc at 950 m scrolling slowly, sun-tinted, thinned at night.
+- **Cars**: traffic + parked cars share a real sedan silhouette (`src/world/carshape.js`: extruded profile + greenhouse + hubs).
+- **Voice via ElevenLabs** (`tools/gen_voice.py`, `assets/audio/voice/*.mp3`, 23 clips, ~600 KB): Surf FM DJ (Roger), KJAZ (George), KPCH traffic/weather (Sarah), nav prompts + dispatcher (River/Sarah). `src/audio/voice.js` plays DJ breaks between songs with music ducking, nav prompts at ~300 ft and at the turn, "you have arrived", dispatcher lines. Quota: ~2 k of 37 k characters used.
+- Exposure 0.92, concrete darkened (sidewalks were blowing out).
 
-## Numbers (preview pane, high quality, downtown with traffic)
-~750 draw calls / ~1.0 M tris per frame before the cabin merge and 5 m terrain step landed at the end of the day — re-measure with F3 in a real browser first thing. If a laptop struggles: quality preset `medium` (mirrors every 2nd frame, 1024 shadow), traffic count in `main.js` (`createTraffic(..., { count: 36 })`), terrain `STEP`.
+## Roadmap ideas (GTA-style free roam, in rough priority)
+1. **Pedestrians** on sidewalks, the boardwalk and the pier; crosswalk crossings that traffic waits for; beach-goers.
+2. **Gas station** on 2nd St (fuel gauge already drains): pull in, stop, hold a key → refuel; low-fuel = engine dies until you push/reset.
+3. **Police**: a patrol car in traffic; speeding/red-light near it → pull-over mini event (stop within 10 s or lose score/money).
+4. **Parking mode**: marked bays in the pier lot / beach lot; park inside the lines → "parked" bonus; parallel parking on streets.
+5. **Car damage**: cracked-windshield overlay + rattles after hard hits; repair at the garage on 4th St.
+6. **Phone / map menu**: full-screen map (the nav master canvas) with fast travel to POIs, mission list, collectibles (viewpoints, hidden beach spots, pier photo ops).
+7. **Ambient life**: seagull flocks, a beach bus / ice-cream truck on a fixed route, boats offshore, joggers, a lifeguard truck on the sand.
+8. **Traffic upgrades**: lane changes, horns when you block them, headlights in tunnels, a few trucks/buses shapes.
+9. **Radio**: song titles per track (ElevenLabs clips read them), more music variety, news reacting to weather/time.
+10. **Photo mode** (free camera exists as `debugShot`) and a chase/hood camera toggle for screenshots only.
 
-## Not yet done / ideas
-- Gamepad + wheel paths are untested on real hardware (no pad in the preview). Calibration UI is code-only (`__game.gamepad.startCalibration(cb)`); wire a button in the pause menu.
-- Quality preset changes need a reload (renderer/shadow/mirror sizes are read at boot).
-- Ocean Ave → PCH transition is an abrupt width change (4-lane → 2-lane). Add a taper segment.
-- Pedestrians, lane changes for traffic, traffic on the pier lots looks odd (they drive the lot loops on the sand — the lot ribbons are narrow).
-- Tuning with a real mouse/keyboard: keyboard steer rates in `src/input.js`, shift points in `drivetrain.js`, exposure/bloom in `main.js`/`post.js`.
-- Sound levels were set blind; balance in a real browser.
+## Known rough edges
+- Preview pane: refuses pointer lock, throttles rAF when hidden; drive with `__game.start(); __game.tick(n)`.
+- The console error list in the preview tool persists across reloads; the `rides` error listed is from an earlier build.
+- Kiosks on the pier are plain boxes with signs; the Ferris wheel legs are simple; roller coaster has one rail (a tube) plus ties.
+- Ocean Ave → PCH still an abrupt width change. Traffic on the pier is rare but possible (turn weights).
+- Gamepad/wheel untested on hardware; audio levels set blind; measure fps with F3 in a real browser.
+- Photo facades have no night-lit windows (only the canvas styles glow).
 
-## Gotchas
-- Preview pane refuses pointer lock and throttles rAF when hidden → `__game.start(); __game.tick(n)`; free camera `__game.debugShot(x,y,z, tx,ty,tz)` / `debugShot(null)`.
-- The console error list in the preview tool persists across reloads; the three stale ones (read-only `position`, a syntax error, a mergeGeometries failure) are from earlier builds.
-- `Object.assign(mesh, { position })` throws on r185 — use `mesh.position.set`.
-- Ribbon/fan winding: CCW seen from above or the road is back-face culled.
-- Collider boxes are (hw across, hd along) — pass thickness first for anything that runs along the road.
-- Patch files with Python scripts using `assert s.count(old) == 1`; an empty `old` once shredded main.js.
+## Gotchas (see CLAUDE.md too)
+- `Object.assign(mesh, { position })` throws on r185. Ribbon/fan winding must be CCW from above. Collider boxes are (hw across, hd along).
+- Patch files with Python scripts that `assert s.count(old) == 1`; run them from a file, not a bash heredoc (JS quotes break the heredoc).
+- Any new mesh must `layers.enable(2)` to show in the mirrors; cabin meshes stay on layer 0.

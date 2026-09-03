@@ -79,7 +79,7 @@ export function createTerrain(roads, M, T) {
     const seg = near.seg, s = near.s;
     const inTunnel = seg.tunnel && s > seg.tunnel[0] + 6 && s < seg.tunnel[1] - 6;
     const inBridge = seg.bridge && s > seg.bridge[0] + 4 && s < seg.bridge[1] - 4;
-    if (inTunnel || inBridge) return h0;
+    if (inTunnel || inBridge || seg.type === 'pier') return h0;
     const shoulderY = near.y - 0.06;
     const w = seg.type === 'street' || seg.type === 'avenue' ? 6 : 8;
     const t = smoothstep(w, 32, near.dist);
@@ -95,9 +95,22 @@ export function createTerrain(roads, M, T) {
 
   // ------------------------------------------------------------------ meshes
   const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: T.generalNoise, roughness: 1, metalness: 0 });
-  mat.map = T.canvasTex(256, 256, (g, w, hh) => { g.fillStyle = '#b8b8b8'; g.fillRect(0, 0, w, hh); for (let i = 0; i < 9000; i++) { g.fillStyle = Math.random() < 0.5 ? '#9a9a9a' : '#d4d4d4'; g.globalAlpha = 0.25; g.fillRect(Math.random() * w, Math.random() * hh, 1 + Math.random() * 2, 1 + Math.random() * 2); } g.globalAlpha = 1; }, { srgb: true });
-  mat.map.repeat.set(30, 30);
+  const photos = !!(T.img('grass') && T.img('sand') && T.img('rock'));
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  if (photos) {
+    mat.map = T.photoTex('grass', { repeat: [1, 1] });
+    const sandT = T.photoTex('sand'), rockT = T.photoTex('rock');
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.mapSand = { value: sandT }; sh.uniforms.mapRock = { value: rockT };
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 splat; varying vec3 vSplat;').replace('#include <uv_vertex>', '#include <uv_vertex>\nvSplat = splat;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D mapSand; uniform sampler2D mapRock; varying vec3 vSplat;')
+        .replace('#include <map_fragment>', 'vec4 g1 = mix(texture2D( map, vMapUv ), texture2D( map, vMapUv * 0.23 + 0.37 ), 0.5); vec4 s1 = mix(texture2D( mapSand, vMapUv ), texture2D( mapSand, vMapUv * 0.19 + 0.11 ), 0.5); vec4 r1 = mix(texture2D( mapRock, vMapUv * 0.6 ), texture2D( mapRock, vMapUv * 0.14 + 0.5 ), 0.5); vec4 texelColor = g1 * vSplat.x + s1 * vSplat.y + r1 * vSplat.z;\ndiffuseColor *= texelColor;');
+    };
+    mat.customProgramCacheKey = () => 'terrain-splat';
+  } else {
+    mat.map = T.canvasTex(256, 256, (g, w, hh) => { g.fillStyle = '#b8b8b8'; g.fillRect(0, 0, w, hh); for (let i = 0; i < 9000; i++) { g.fillStyle = Math.random() < 0.5 ? '#9a9a9a' : '#d4d4d4'; g.globalAlpha = 0.25; g.fillRect(Math.random() * w, Math.random() * hh, 1 + Math.random() * 2, 1 + Math.random() * 2); } g.globalAlpha = 1; }, { srgb: true });
+    mat.map.repeat.set(30, 30);
+  }
   const cSand = new THREE.Color(0xd9c497), cGrass = new THREE.Color(0x6f7d3a), cScrub = new THREE.Color(0x8d8a52), cRock = new THREE.Color(0x7a6a56), cDirt = new THREE.Color(0xa08a62);
   const tmpC = new THREE.Color();
   const bounds = { x0: -420, x1: 560, z0: -2800, z1: 940 };
@@ -107,12 +120,12 @@ export function createTerrain(roads, M, T) {
     const geo = new THREE.PlaneGeometry(CHUNK, CHUNK, nx, nz);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position, uv = geo.attributes.uv;
-    const colors = new Float32Array(pos.count * 3);
+    const colors = new Float32Array(pos.count * 3), splat = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i) + cx, z = pos.getZ(i) + cz;
       const h = heightAt(x, z);
       pos.setXYZ(i, x, h, z);
-      uv.setXY(i, x / CHUNK, z / CHUNK);
+      uv.setXY(i, x / 7, z / 7);
     }
     geo.computeVertexNormals();
     const nrm = geo.attributes.normal;
@@ -120,13 +133,21 @@ export function createTerrain(roads, M, T) {
       const x = pos.getX(i), z = pos.getZ(i), h = pos.getY(i);
       const slope = 1 - nrm.getY(i);
       const type = surfaceType(x, z, h);
-      tmpC.copy(type === 'sand' ? cSand : type === 'dirt' ? cDirt : cGrass);
-      if (type === 'grass') { tmpC.lerp(cScrub, smoothstep(20, 90, h) * 0.8); tmpC.lerp(cRock, smoothstep(0.25, 0.55, slope)); }
-      if (type === 'dirt') tmpC.lerp(cRock, smoothstep(0.2, 0.5, slope));
-      const nse = 0.9 + 0.2 * vnoise(x * 0.15, z * 0.15);
+      const rockW = type === 'dirt' ? smoothstep(0.2, 0.5, slope) : smoothstep(0.25, 0.55, slope);
+      const sandW = type === 'sand' ? 1 : type === 'dirt' ? 0.5 : 0;
+      const grassW = Math.max(0, 1 - rockW - sandW);
+      splat[i * 3] = grassW; splat[i * 3 + 1] = sandW * (1 - rockW); splat[i * 3 + 2] = rockW;
+      if (photos) { tmpC.set(1, 1, 1); if (type === 'grass') tmpC.lerp(new THREE.Color(0xd8c9a0), smoothstep(20, 90, h) * 0.25); }
+      else {
+        tmpC.copy(type === 'sand' ? cSand : type === 'dirt' ? cDirt : cGrass);
+        if (type === 'grass') { tmpC.lerp(cScrub, smoothstep(20, 90, h) * 0.8); tmpC.lerp(cRock, smoothstep(0.25, 0.55, slope)); }
+        if (type === 'dirt') tmpC.lerp(cRock, smoothstep(0.2, 0.5, slope));
+      }
+      const nse = photos ? 0.94 + 0.12 * vnoise(x * 0.15, z * 0.15) : 0.9 + 0.2 * vnoise(x * 0.15, z * 0.15);
       colors[i * 3] = tmpC.r * nse; colors[i * 3 + 1] = tmpC.g * nse; colors[i * 3 + 2] = tmpC.b * nse;
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('splat', new THREE.BufferAttribute(splat, 3));
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true; mesh.castShadow = false; mesh.layers.enable(2);
