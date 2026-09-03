@@ -14,6 +14,9 @@ import { buildRoadMesh } from './world/roadmesh.js';
 import { createCollide } from './collide.js';
 import { buildOcean } from './world/ocean.js';
 import { createWeather } from './weather.js';
+import { createSignals } from './world/signals.js';
+import { buildProps } from './world/props.js';
+import { buildTown } from './world/town.js';
 import { createCar } from './vehicle/car.js';
 import { buildCarMesh } from './vehicle/carmesh.js';
 import { buildInterior } from './cockpit/interior.js';
@@ -60,6 +63,9 @@ const collide = createCollide();
 const terrain = createTerrain(roads, M, T); scene.add(terrain.build());
 const roadMesh = buildRoadMesh(roads, terrain, M, T, collide); scene.add(roadMesh.group);
 const ocean = buildOcean(scene, terrain, sky, T);
+const signals = createSignals(roads);
+const props = buildProps(scene, roads, terrain, M, T, collide, lighting, signals);
+const town = buildTown(scene, roads, terrain, M, T, collide, lighting);
 const world = {
   roads, terrain, collide,
   surfaceAt(x, z) {
@@ -170,6 +176,7 @@ function simStep(dt) {
   else { I.throttle = 0; I.brake = Math.max(I.brake, 0); }
   car.step(dt, I);
   collide.resolveCar(car);
+  signals.update(dt);
   game.time += dt;
   game.hour = (game.hour + dt / 3600 * 12) % 24; // 2-hour day for now (12× real time) — tuned later
   rig.update(dt, I, car);
@@ -204,6 +211,8 @@ function render(dt) {
   sky.update(camera);
   sky.refreshEnvironment(renderer);
   ocean.update(dt);
+  town.update(dt, sky.S.night, lighting.S.streetOn);
+  props.lampHead.emissiveIntensity = lighting.S.streetOn ? 2.5 : 0;
   car.S.inTunnel = !!roads.surfaceAt(car.S.x, car.S.z).tunnel;
   carRoot.updateMatrixWorld(true);
   fwdV.set(-Math.sin(car.S.yaw), 0, -Math.cos(car.S.yaw)); focusV.set(car.S.x, car.S.y, car.S.z);
@@ -245,12 +254,12 @@ requestAnimationFrame(frame);
 
 // ---------------------------------------------------------------- test hooks
 window.__game = {
-  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, menu, hud, gauges, interior, exterior,
+  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, signals, props, town, menu, hud, gauges, interior, exterior,
   start, pause, resume,
   tick(n = 1, dt = DT) { for (let i = 0; i < n; i++) simStep(dt); render(dt * n); },
   teleport(x, z, yaw = 0) { car.teleport(x, z, yaw); syncVisuals(); },
   setTime(h) { game.hour = h; sky.setHour(h); },
-  setWeather(kind, instant = true) { weather.set(kind, instant); menu.opts.weather = kind; menu.refresh(); },
+  setWeather(kind, instant = true) { weather.set(kind, instant); },
   // free camera for inspecting the world from above: debugShot(x,y,z, tx,ty,tz [,fov]); debugShot(null) restores the rig
   debugShot(x, y, z, tx, ty, tz, fov = 60) { game.debugCam = x == null ? null : { x, y, z, tx, ty, tz, fov }; render(0.016); },
 };

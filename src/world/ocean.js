@@ -57,7 +57,7 @@ const frag = `
     // foam
     float ft = texture2D(foamTex, vWorld.xz * 0.06 + vec2(time * 0.02, 0.0)).r;
     float foam = clamp(vFoam * (0.5 + ft), 0.0, 1.0);
-    col = mix(col, vec3(0.92, 0.95, 0.96), foam * 0.85);
+    col = mix(col, vec3(0.92, 0.95, 0.96) * (0.25 + 0.75 * glint), foam * 0.85);
     gl_FragColor = vec4(col, 1.0);
     #include <fog_fragment>
   }`;
