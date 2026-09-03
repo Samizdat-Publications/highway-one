@@ -86,7 +86,7 @@ export function buildRoadMesh(roads, terrain, M, T, collide) {
         posts.push(pg);
       }
       if (posts.length) push(M.railSteel, mergeGeometries(posts));
-      for (let s = s0 + 2; s < s1 - 2; s += 12) { const sm = roads.sampleAt(seg, Math.min(s + 6, s1 - 2)); collide.addBox(sm.p.x + sm.n.x * off, sm.p.z + sm.n.z * off, 6.2, 0.15, Math.atan2(-sm.t.x, -sm.t.z), 'guardrail'); }
+      for (let s = s0 + 2; s < s1 - 2; s += 12) { const sm = roads.sampleAt(seg, Math.min(s + 6, s1 - 2)); collide.addBox(sm.p.x + sm.n.x * off, sm.p.z + sm.n.z * off, 0.15, 6.2, Math.atan2(-sm.t.x, -sm.t.z), 'guardrail'); }
     }
     // tunnels
     if (seg.tunnel) buildTunnel(seg, seg.tunnel[0], seg.tunnel[1]);
@@ -103,7 +103,7 @@ export function buildRoadMesh(roads, terrain, M, T, collide) {
     // walls/kerb colliders along both sides
     for (let s = t0; s < t1; s += 10) {
       const sm = roads.sampleAt(seg, Math.min(s + 5, t1));
-      for (const side of [-1, 1]) collide.addBox(sm.p.x + sm.n.x * side * (hw + 0.6), sm.p.z + sm.n.z * side * (hw + 0.6), 5.2, 0.5, Math.atan2(-sm.t.x, -sm.t.z), 'tunnel');
+      for (const side of [-1, 1]) collide.addBox(sm.p.x + sm.n.x * side * (hw + 0.6), sm.p.z + sm.n.z * side * (hw + 0.6), 0.5, 5.2, Math.atan2(-sm.t.x, -sm.t.z), 'tunnel');
     }
     // portals: a wall with an arch hole at each end
     for (const s of [t0, t1]) {
@@ -115,8 +115,8 @@ export function buildRoadMesh(roads, terrain, M, T, collide) {
       const yaw = Math.atan2(sm.t.x, sm.t.z);
       geo.applyMatrix4(new THREE.Matrix4().makeRotationY(yaw)).translate(sm.p.x, sm.p.y, sm.p.z);
       push(M.concrete, geo);
-      collide.addBox(sm.p.x + sm.n.x * (R + 3.5), sm.p.z + sm.n.z * (R + 3.5), 1, 5, Math.atan2(-sm.t.x, -sm.t.z), 'portal');
-      collide.addBox(sm.p.x - sm.n.x * (R + 3.5), sm.p.z - sm.n.z * (R + 3.5), 1, 5, Math.atan2(-sm.t.x, -sm.t.z), 'portal');
+      collide.addBox(sm.p.x + sm.n.x * (R + 4.0), sm.p.z + sm.n.z * (R + 4.0), 3.7, 0.6, Math.atan2(-sm.t.x, -sm.t.z), 'portal');
+      collide.addBox(sm.p.x - sm.n.x * (R + 4.0), sm.p.z - sm.n.z * (R + 4.0), 3.7, 0.6, Math.atan2(-sm.t.x, -sm.t.z), 'portal');
     }
     seg.tunnelLamps = [];
     for (let s = t0 + 12; s < t1 - 6; s += 24) { const sm = roads.sampleAt(seg, s); seg.tunnelLamps.push(new THREE.Vector3(sm.p.x, sm.p.y + 5.2, sm.p.z)); }
@@ -132,7 +132,7 @@ export function buildRoadMesh(roads, terrain, M, T, collide) {
       if (wall) { wall.computeVertexNormals(); push(M.concrete, wall); }
       const cap = ribbon(seg, [side * (hw + 0.3), side * (hw + 0.9)], b0, b1, 1.05, 'world');
       if (cap) push(M.concrete, cap);
-      for (let s = b0; s < b1; s += 10) { const sm = roads.sampleAt(seg, Math.min(s + 5, b1)); collide.addBox(sm.p.x + sm.n.x * side * (hw + 0.6), sm.p.z + sm.n.z * side * (hw + 0.6), 5.2, 0.3, Math.atan2(-sm.t.x, -sm.t.z), 'bridge'); }
+      for (let s = b0; s < b1; s += 10) { const sm = roads.sampleAt(seg, Math.min(s + 5, b1)); collide.addBox(sm.p.x + sm.n.x * side * (hw + 0.6), sm.p.z + sm.n.z * side * (hw + 0.6), 0.3, 5.2, Math.atan2(-sm.t.x, -sm.t.z), 'bridge'); }
     }
     // piers every 30 m down to the terrain
     const pierG = [];

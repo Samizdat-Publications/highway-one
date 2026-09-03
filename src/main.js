@@ -17,6 +17,19 @@ import { createWeather } from './weather.js';
 import { createSignals } from './world/signals.js';
 import { buildProps } from './world/props.js';
 import { buildTown } from './world/town.js';
+import { createDriver } from './traffic/driver.js';
+import { createTraffic } from './traffic/agents.js';
+import { createBot } from './traffic/bot.js';
+import { createAudioContext } from './audio/context.js';
+import { createEngineAudio } from './audio/engine.js';
+import { createSfx } from './audio/sfx.js';
+import { createAmbient } from './audio/ambient.js';
+import { createRadioAudio } from './audio/radio.js';
+import { createSave } from './save.js';
+import { createGamepad } from './gamepad.js';
+import { createRouter } from './modes/route.js';
+import { createEvents, createRulesMonitor } from './modes/base.js';
+import { createModes } from './modes/modes.js';
 import { createCar } from './vehicle/car.js';
 import { buildCarMesh } from './vehicle/carmesh.js';
 import { buildInterior } from './cockpit/interior.js';
@@ -66,6 +79,7 @@ const ocean = buildOcean(scene, terrain, sky, T);
 const signals = createSignals(roads);
 const props = buildProps(scene, roads, terrain, M, T, collide, lighting, signals);
 const town = buildTown(scene, roads, terrain, M, T, collide, lighting);
+const driver = createDriver(roads, signals);
 const world = {
   roads, terrain, collide,
   surfaceAt(x, z) {
@@ -92,6 +106,7 @@ const vlights = buildVehicleLights(exterior, interior.anchors, car, game);
 const nav = buildNav(M, interior.anchors, roads, car, game);
 const radio = buildRadio(M, interior.anchors, game);
 const weather = createWeather(scene, camera, sky, M, wipers, car, Q);
+const traffic = createTraffic(scene, roads, driver, car, { count: 36 });
 // mirror cameras see layer 2: everything in the world except the cabin
 scene.traverse((o) => { o.layers.enable(2); });
 interior.root.traverse((o) => { o.layers.disable(2); });
@@ -103,11 +118,28 @@ const input = createInput(canvas, {
   onLockDenied: () => hud.setLockHint('POINTER LOCK REFUSED BY HOST — CLICK-DRAG TO LOOK'),
   onLockChange: (locked) => { hud.setLockHint(locked ? '' : (input.I.lockDenied ? 'CLICK-DRAG TO LOOK' : 'CLICK TO CAPTURE MOUSE')); if (!locked && game.state === 'playing' && !input.I.lockDenied) pause(); },
 });
+const bot = createBot(game, car, roads, driver, traffic, input.I);
+const audio = createAudioContext();
+const engineAudio = createEngineAudio(audio, car);
+const sfx = createSfx(audio, car);
+const ambientAudio = createAmbient(audio, car, terrain);
+radio.ignition = () => game.ignitionOn;
+const radioAudio = createRadioAudio(audio, radio);
+document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else if (game.state === 'playing') audio.resume(); });
+const save = createSave();
+const gamepad = createGamepad(input.I, save);
+const router = createRouter(roads, driver);
+const events = createEvents();
+const rules = createRulesMonitor(events, car, roads, signals, driver, collide);
+const modes = createModes({ game, car, roads, driver, router, nav, hud, events, rules, save, traffic, menu });
+car.S.odometer = save.get('odometer', car.S.odometer);
+setInterval(() => save.set('odometer', car.S.odometer), 15000);
 
 // ---------------------------------------------------------------- options
 function applyOption(k, v) {
   switch (k) {
     case 'sens': input.I.sens = v; break;
+    case 'vol': audio.setVolume(v); break;
     case 'fov': rig.S.fovTarget = v; break;
     case 'seat': rig.S.seatY = v; break;
     case 'trans': car.drivetrain.setMode(v); break;
@@ -126,15 +158,16 @@ function start() {
   game.state = 'playing'; input.I.enabled = true;
   menu.showMain(false); menu.showPause(false);
   input.requestLock();
+  audio.init(); audio.resume();
   if (!game.ignitionOn) {
     game.ignitionOn = true; car.engine.start();
     if (car.drivetrain.S.mode === 'auto') { car.drivetrain.S.sel = 'D'; car.drivetrain.S.gear = 1; car.drivetrain.S.G = car.drivetrain.ratio(1); }
   }
-  hud.setMode(({ freeroam: 'FREE ROAM', delivery: 'DELIVERIES', rules: 'DRIVING TEST', timetrial: 'TIME TRIAL' })[game.mode] || 'FREE ROAM');
-  hud.toast('HIGHWAY ONE', '', 2);
+  if (!modes.active || game.mode !== menu.opts.mode) modes.set(menu.opts.mode);
+  else hud.toast('HIGHWAY ONE', '', 2);
 }
-function pause() { if (game.state !== 'playing') return; game.state = 'paused'; input.I.enabled = false; menu.showPause(true); document.body.classList.add('menu-open'); }
-function resume() { game.state = 'playing'; input.I.enabled = true; menu.showPause(false); document.body.classList.remove('menu-open'); input.requestLock(); }
+function pause() { if (game.state !== 'playing') return; game.state = 'paused'; input.I.enabled = false; menu.showPause(true); document.body.classList.add('menu-open'); audio.suspend(); }
+function resume() { game.state = 'playing'; input.I.enabled = true; menu.showPause(false); document.body.classList.remove('menu-open'); input.requestLock(); audio.resume(); }
 function toMainMenu() { game.state = 'menu'; input.I.enabled = false; menu.showPause(false); menu.showMain(true); input.exitLock(); }
 
 // ---------------------------------------------------------------- per-step controls (edge-triggered keys)
@@ -151,10 +184,13 @@ function handleEdges(I) {
   if (E.wipers) { S.wipers.mode = (S.wipers.mode + 1) % 4; hud.toast(['WIPERS OFF', 'WIPERS · INTERMITTENT', 'WIPERS · LOW', 'WIPERS · HIGH'][S.wipers.mode], '', 1.2); }
   if (E.lights) L.manual = true;
   if (E.navZoom) nav.cycleZoom();
+  if (E.mode) { const order = ['freeroam', 'delivery', 'rules', 'timetrial']; const next = order[(order.indexOf(game.mode) + 1) % order.length]; menu.opts.mode = next; menu.refresh(); menu.save(); modes.set(next); hud.toast(modes.active.name, '', 2); }
+  if (E.handbrakeToggle) I.handbrakeLatch = !I.handbrakeLatch;
   if (E.radio) radio.cycle();
   if (E.transmission) { const order = ['auto', 'manualH', 'manualSeq']; const next = order[(order.indexOf(D.S.mode) + 1) % 3]; D.setMode(next); menu.opts.trans = next; menu.refresh(); menu.save(); hud.toast(({ auto: 'AUTOMATIC', manualH: 'MANUAL · H-PATTERN (1-6, 0=N)', manualSeq: 'MANUAL · SEQUENTIAL' })[next], '', 2); }
   if (E.ignition) { if (car.engine.S.running) { car.engine.stop(); } else { game.ignitionOn = true; car.engine.start(); } }
-  if (E.seatbelt) S.seatbelt = !S.seatbelt;
+  if (E.seatbelt) { S.seatbelt = !S.seatbelt; sfx.chime(); }
+  S.hornOn = !!I.hornHeld;
   if (E.domeLight) L.dome = !L.dome;
   // signal auto-cancel after the wheel returns from a turn
   if (L.signal) {
@@ -171,12 +207,17 @@ const fwdV = new THREE.Vector3(), focusV = new THREE.Vector3();
 
 function simStep(dt) {
   if (window.__botStep) window.__botStep(dt);
+  gamepad.poll(dt);
   const I = input.step(dt, car.S.speed);
+  if (I.handbrakeLatch) I.handbrake = 1;
   if (game.state === 'playing') handleEdges(I);
   else { I.throttle = 0; I.brake = Math.max(I.brake, 0); }
   car.step(dt, I);
-  collide.resolveCar(car);
+  collide.resolveCar(car, traffic.nearBoxes(car.S.x, car.S.z, 12));
   signals.update(dt);
+  const hereNow = roads.surfaceAt(car.S.x, car.S.z);
+  if (car.S.stepCount % CONFIG.sim.aiDivider === 0) traffic.update(dt * CONFIG.sim.aiDivider, hereNow, sky.S.night);
+  if (game.state === 'playing') { rules.update(dt, hereNow); modes.update(dt); }
   game.time += dt;
   game.hour = (game.hour + dt / 3600 * 12) % 24; // 2-hour day for now (12× real time) — tuned later
   rig.update(dt, I, car);
@@ -205,6 +246,7 @@ function render(dt) {
   gauges.update(dt, sky.S.night);
   vlights.update(dt, sky.S.night);
   radio.update(dt);
+  engineAudio.update(dt); sfx.update(dt, weather, car.S.inTunnel); ambientAudio.update(dt); radioAudio.update(dt);
   nav.update(dt, roads.surfaceAt(car.S.x, car.S.z));
   sky.setHour(game.hour);
   weather.update(dt);
@@ -217,6 +259,7 @@ function render(dt) {
   carRoot.updateMatrixWorld(true);
   fwdV.set(-Math.sin(car.S.yaw), 0, -Math.cos(car.S.yaw)); focusV.set(car.S.x, car.S.y, car.S.z);
   lighting.update(dt, focusV, fwdV);
+  terrain.cull(car.S.x, car.S.z, weather.S.kind === 'fog' ? 500 : 1500);
   renderer.shadowMap.needsUpdate = true;
   renderer.info.reset();
   if (!game.debugCam) mirrors.render(camera);
@@ -254,7 +297,7 @@ requestAnimationFrame(frame);
 
 // ---------------------------------------------------------------- test hooks
 window.__game = {
-  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, signals, props, town, menu, hud, gauges, interior, exterior,
+  THREE, scene, camera, renderer, game, car, input: input.I, rig, sky, lighting, world, roads, terrain, collide, roadMesh, controls, wipers, mirrors, vlights, nav, radio, weather, ocean, signals, props, town, driver, traffic, bot, audio, modes, router, rules, events, gamepad, save, menu, hud, gauges, interior, exterior,
   start, pause, resume,
   tick(n = 1, dt = DT) { for (let i = 0; i < n; i++) simStep(dt); render(dt * n); },
   teleport(x, z, yaw = 0) { car.teleport(x, z, yaw); syncVisuals(); },

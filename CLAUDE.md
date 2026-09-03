@@ -35,6 +35,9 @@ src/hud.js, menu.js, save.js  DOM HUD, options, localStorage
 ## World coordinates
 three.js default: **x east, −z north, y up**. Car local: +x right, −z forward. Ocean is west (x < −110). Town grid centred at the origin, Ocean Ave at x = −40 running north–south, pier at z ≈ +120 reaching west. PCH runs north from z ≈ −260 along cliffs (tunnel ≈ z −900, bridge ≈ z −1300, mountain-pass T at z −700). See `src/world/layout.js` and `docs/PLAN.md`.
 
+## Key map (see index.html)
+W/S pedals · A/D steer · Space handbrake · Shift/Ctrl shift up/down (auto: P R N D) · C clutch · 1–5, 6=R, 0=N H-pattern · Q/E signals · Z hazards · L lights · X wipers · H horn · I ignition · B seatbelt · T transmission mode · R radio · N nav zoom · M next mode · F dome light · , . / quick look · F3 perf · Esc pause.
+
 ## Testing in the in-app browser (important)
 - The preview pane refuses pointer lock and, when hidden, **throttles requestAnimationFrame to zero**. Drive frames manually:
   `window.__game.start(); window.__game.tick(120)` (tick(n, dt) runs n fixed sim steps + one render).
@@ -42,7 +45,9 @@ three.js default: **x east, −z north, y up**. Car local: +x right, −z forwar
 - Teleport: `__game.teleport(x, z, headingRad)`; time: `__game.setTime(hour)`; weather: `__game.setWeather('clear'|'fog'|'rain')`.
 - Vehicle state: `__game.car.S` (speedMph, engine.rpm, drive.gear, wheels[], body pitch/roll…).
 - `__game.game.timeScale` slows/freezes for screenshots. F3 toggles the perf overlay in a real browser.
-- **Bot soak:** `main.js` calls `window.__botStep(i)` before each sim step if defined (`src/traffic/bot.js` installs an autopilot).
+- **Bot soak:** `__game.bot.start()` installs `window.__botStep` (autopilot on the lane graph obeying signals/stop signs); `__game.bot.report()` gives miles / collisions / max mph / stuck time; `__game.bot.stop()`.
+- Free camera: `__game.debugShot(x, y, z, tx, ty, tz, fov)`; `__game.debugShot(null)` restores the rig.
+- Headless (Node) tests of anything that imports three: `node --import ./tools/node-three-register.mjs script.mjs`.
 - Patch source with a Python script written to the scratchpad and run with `python` — bash heredocs containing JS quotes have bitten us.
 - Verify with screenshots before claiming anything looks right.
 

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { clamp, lerp, smoothstep } from '../units.js';
 import { PCH_NORTH, TOWN } from './layout.js';
 
-const CHUNK = 120, STEP = 4;
+const CHUNK = 120, STEP = 5;
 
 // cheap value noise
 function hash2(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
@@ -138,5 +138,7 @@ export function createTerrain(roads, M, T) {
     return group;
   }
 
-  return { group, heightAt, baseHeight, surfaceType, coastAt, build, chunks, bounds };
+  // hide chunks beyond the fog horizon
+  function cull(x, z, maxD = 1500) { const m2 = maxD * maxD; for (const c of chunks) { const dx = c.geometry.boundingSphere.center.x - x, dz = c.geometry.boundingSphere.center.z - z; c.visible = dx * dx + dz * dz < m2; } }
+  return { group, heightAt, baseHeight, surfaceType, coastAt, build, chunks, bounds, cull };
 }

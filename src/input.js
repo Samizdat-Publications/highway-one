@@ -92,8 +92,9 @@ export function createInput(canvas, hooks = {}) {
     const kbSteer = (has('KeyA') || has('ArrowLeft') ? -1 : 0) + (has('KeyD') || has('ArrowRight') ? 1 : 0);
 
     // Keyboard steering: integrate toward a speed-scaled max angle, spring back when released.
-    const maxDeg = (C.lockToLock / 2) * clamp(1 - speed / 60, 0.15, 1);
-    if (kbSteer !== 0) kb.steerDeg = moveToward(kb.steerDeg, kbSteer * maxDeg, C.kbSteerRate * dt);
+    const maxDeg = (C.lockToLock / 2) * clamp(1 - speed / 50, 0.12, 1);
+    const rate = C.kbSteerRate * (0.22 + 0.78 * clamp(1 - speed / 30, 0, 1));
+    if (kbSteer !== 0) kb.steerDeg = moveToward(kb.steerDeg, kbSteer * maxDeg, rate * dt);
     else kb.steerDeg = moveToward(kb.steerDeg, 0, C.kbReturnRate * dt * Math.min(1, 0.35 + speed / 8));
     let steerDeg = kb.steerDeg;
     I.steerAnalog = null;

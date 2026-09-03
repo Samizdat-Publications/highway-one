@@ -12,6 +12,8 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1);
   const place = (geo, x, y, z, yaw, s = 1) => geo.clone().applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0)), new THREE.Vector3(s, s, s)));
   const groundY = (x, z) => { const r = roads.surfaceAt(x, z); return r.onRoad || r.seg ? r.height : terrain.heightAt(x, z); };
+  // nudge a roadside position back along `back` (unit vector) until it is clear of every road surface
+  const clearOfRoad = (pos, back) => { const p = pos.clone(); for (let i = 0; i < 10; i++) { const r = roads.surfaceAt(p.x, p.z); if (!r.onRoad && !r.inIntersection) return p; p.addScaledVector(back, 1.0); } return null; };
 
   // ------------------------------------------------------------------ materials
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x5a5e62, roughness: 0.6, metalness: 0.7 });
@@ -138,7 +140,8 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
         });
         collide.addCircle(far.x, far.z, 0.2, 'pole');
       } else if (ap.stopSign) {
-        const pos = sm.p.clone().addScaledVector(rightN, hw + 0.8);
+        const pos0 = sm.p.clone().addScaledVector(rightN, hw + 1.0).addScaledVector(T0, -1.5);
+        const pos = clearOfRoad(pos0, T0.clone().multiplyScalar(-1)); if (!pos) continue;
         const y = groundY(pos.x, pos.z);
         stopGeos.push(place(signPostG, pos.x, y, pos.z, 0));
         const face = new THREE.PlaneGeometry(0.76, 0.76).applyMatrix4(new THREE.Matrix4().makeRotationY(yawFacing + Math.PI)).translate(pos.x, y + 2.3, pos.z);
@@ -152,8 +155,9 @@ export function buildProps(scene, roads, terrain, M, T, collide, lighting, signa
     if (!(seg.type === 'highway' || seg.type === 'avenue' || seg.type === 'side')) continue;
     for (let s = 60; s < seg.length - 40; s += 320) for (const dir of [1, -1]) {
       const sm = roads.sampleAt(seg, dir === 1 ? s : seg.length - s);
-      const off = dir * (seg.hw + 1.0);
+      const off = dir * (seg.hw + 1.2);
       const x = sm.p.x + sm.n.x * off, z = sm.p.z + sm.n.z * off, y = groundY(x, z);
+      if (roads.surfaceAt(x, z).onRoad) continue;
       if (seg.tunnel && sm.s > seg.tunnel[0] - 10 && sm.s < seg.tunnel[1] + 10) continue;
       if (seg.bridge && sm.s > seg.bridge[0] - 10 && sm.s < seg.bridge[1] + 10) continue;
       stopGeos.push(place(signPostG, x, y, z, 0));

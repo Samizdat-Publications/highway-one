@@ -77,7 +77,7 @@ export function createRoads() {
       });
       approaches.sort((p, q) => p.angle - q.angle);
       const kind = node.control || (node.segs.length >= 3 ? 'stop4' : 'none');
-      const inter = { id: node.id, node, kind, radius, approaches, connectors: [], signal: null };
+      const inter = { id: node.id, node, kind, radius, approaches, connectors: [], signal: null, maxLimit: Math.max(...approaches.map((a) => a.seg.limitMph)) };
       if (kind === 'stop4') approaches.forEach((a) => { a.stopSign = true; });
       if (kind === 'stop2') approaches.forEach((a) => { a.stopSign = a.group === 'EW'; }); // E-W traffic stops
       if (kind === 'signal') inter.signal = { phases: [{ green: 'NS', dur: 22 }, { yellow: 'NS', dur: 3.5 }, { allRed: true, dur: 1.5 }, { green: 'EW', dur: 18 }, { yellow: 'EW', dur: 3.5 }, { allRed: true, dur: 1.5 }], t: (node.id.length * 7.3) % 50, phase: 0 };
@@ -159,7 +159,7 @@ export function createRoads() {
       const dx = x - inter.node.p.x, dz = z - inter.node.p.z;
       if (dx * dx + dz * dz <= inter.radius * inter.radius) {
         r.onRoad = true; r.inIntersection = true; r.inter = inter; r.height = inter.node.p.y; r.surface = 'asphalt';
-        r.limitMph = inter.approaches[0].seg.limitMph; r.name = inter.approaches[0].seg.name; r.lateral = 0; r.laneIndex = 0;
+        r.limitMph = inter.maxLimit; r.name = inter.approaches[0].seg.name; r.lateral = 0; r.laneIndex = 0;
         return r;
       }
     }

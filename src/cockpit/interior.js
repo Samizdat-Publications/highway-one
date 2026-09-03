@@ -2,6 +2,7 @@
 // Returns named anchors that the wheel, gauges, controls, mirrors and nav modules attach to.
 import * as THREE from 'three';
 import { DEG } from '../units.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const PL = (m, p, r) => { if (p) m.position.set(p[0], p[1], p[2]); if (r) m.rotation.set(r[0], r[1], r[2]); return m; };
 
@@ -176,5 +177,31 @@ export function buildInterior(M, T) {
   }
 
   root.traverse((o) => { if (o.isMesh) { o.layers.set(0); o.frustumCulled = false; } });
+  mergeStatic(root, anchors);
   return { root, anchors };
+}
+
+// Merge every static cabin mesh per material into one draw call each; anything under an animated anchor
+// (wheel hub, stalks, pedals, shifter, handbrake, mirrors, screens, wipers) is left alone.
+function mergeStatic(root, anchors) {
+  const animated = new Set();
+  const mark = (o) => { if (!o) return; o.traverse((c) => animated.add(c)); };
+  for (const k of ['wheelHub', 'stalkL', 'stalkR', 'shifter', 'handbrake', 'rearMirror', 'sideMirrorL', 'sideMirrorR', 'nav', 'radio', 'cluster', 'wipers', 'domeLight', 'windshield']) mark(anchors[k]);
+  for (const k in anchors.pedals || {}) mark(anchors.pedals[k]);
+  root.updateMatrixWorld(true);
+  const byMat = new Map(), remove = [];
+  root.traverse((o) => {
+    if (!o.isMesh || animated.has(o) || o.material.transparent) return;
+    const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+    const flat = g.index ? g.toNonIndexed() : g;
+    if (!flat.attributes.uv) flat.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(flat.attributes.position.count * 2), 2));
+    if (!flat.attributes.normal) flat.computeVertexNormals();
+    if (!byMat.has(o.material)) byMat.set(o.material, []);
+    byMat.get(o.material).push(flat); remove.push(o);
+  });
+  for (const o of remove) o.parent.remove(o);
+  for (const [mat, geos] of byMat) {
+    const merged = mergeGeometries(geos, false); if (!merged) continue;
+    const m = new THREE.Mesh(merged, mat); m.receiveShadow = true; m.frustumCulled = false; m.layers.set(0); m.name = 'cabin-merged'; root.add(m);
+  }
 }
